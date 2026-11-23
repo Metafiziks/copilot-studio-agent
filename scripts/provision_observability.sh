@@ -8,9 +8,12 @@
 # Idempotent: existing resources are reused. Cost is bounded by a DAILY INGESTION CAP on the workspace
 # (default 1 GB/day) and a 30-day retention; both are configurable below.
 #
-# The last step cannot be scripted: Copilot Studio exposes no API or YAML field for the Application
-# Insights connection (none in the agent definition or the Dataverse bot table). In the portal:
-#   Settings > Advanced > Application Insights > paste the connection string printed below.
+# The last step cannot be scripted, and depends on the agent type:
+#   * classic agent: portal, Settings > Advanced > Application Insights > paste the connection string below.
+#   * harness (CliCopilot) agent: no per-agent setting. Power Platform admin center > Manage > Data export >
+#     App Insights > New data export, data type "Copilot Studio", on a MANAGED environment, pointing at this
+#     resource (Application Insights needs "Local authentication" on). Verified on this repo's agent;
+#     delivery can start hours after creation.
 #
 # Configuration (environment or .env), defaults shown:
 #   OBS_RESOURCE_GROUP=rg-copilot-agent-obs   OBS_LOCATION=eastus2
@@ -23,7 +26,7 @@ set -euo pipefail
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
-    -h|--help) sed -n '2,19p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,21p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "unknown option: $arg" ;;
   esac
 done
@@ -94,6 +97,10 @@ BEFORE connecting a protected-documents agent: turn OFF "Log conversation detail
 publish the agent. By default the platform's events log the user's question, the agent's reply and the
 user's identity; turning it off removes the text and display name (the Entra object ID stays). See
 README > Observability.
+
+For a harness agent, use the admin-center export instead (see the header). Its spans land in
+the dependencies table (InvokeAgent, ExecuteTool), not customEvents, and carry prompts, replies, document text
+and user identity: restrict workspace access.
 
 Query it from scripts with:  az monitor app-insights query --app $OBS_APPINSIGHTS -g $OBS_RESOURCE_GROUP --analytics-query "customEvents | take 5"
 EOF

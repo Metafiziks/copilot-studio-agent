@@ -11,9 +11,8 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > tenant. Done and verified: one-script provision (create or update, idempotent), per-user memory,
 > per-user restriction at site and document level (two users, side by side), CI and OIDC deploy, and a
 > **passing scored eval** (keyword recall 0.99, citation recall 1.00, p95 25.7 s, memory recall 1.00, run
-> as a licensed user). **Not done:** the built-in LLM-judged graders and HHEM, anomaly detection, and
-> per-agent telemetry (an environment-level preview export was set up on one test environment; nothing arrived
-> in the first 10 hours). **Two things will silently break it:** a user without a SharePoint-bearing license, and a
+> as a licensed user), and **telemetry** (environment-level export to Application Insights, verified).
+> **Not done:** the built-in LLM-judged graders and HHEM, and anomaly detection. **Two things will silently break it:** a user without a SharePoint-bearing license, and a
 > brand-new SharePoint site (see Troubleshooting). Each section says exactly where it stands.
 
 ## Architecture
@@ -142,8 +141,11 @@ The cause was not the agent being wrong. Two checks had been misleading:
 - The agent itself still failed on the two brand-new corpus sites for hours (errors, then "no results"),
   for Jane and for John, while the same agent answered correctly from the two-day-old dev site. A new file
   added to an established site was retrievable **about 10 minutes** after upload. So the agent's search
-  appears to take a long time to start covering a **brand-new site** (not confirmed, not a Microsoft
-  statement), while new files on a covered site are quick. The corpus therefore runs in the established dev
+  appears to take a long time to start covering a **brand-new site** (not a Microsoft statement), while new
+  files on a covered site are quick. The conversation transcripts give the failing call's exact error,
+  `sharepoint_*_search failed: NotFound in FederationWorkflow` (every search but one, from 03:02 to 06:35 UTC
+  on the e2e agent), and the telemetry shows the same e2e agent retrieving from the same new site, `ol-eval-corpus`,
+  successfully 12.5 hours later. A Microsoft Q&A thread reports the same error text, with no answer. The corpus therefore runs in the established dev
   site, uploaded flat (`--with-corpus`); sub-folders were not re-tested after the site became usable.
 
 **LLM-judged metrics** (relevance, groundedness) come from Copilot Studio's built-in
@@ -198,7 +200,7 @@ immediately. It is usage-billed.
 
 **Why it was not here before.** The first version of this repo was a classic, topic-based agent, which has
 no Memory option. Memory belongs to the harness agent type, so the agent was rebuilt as one
-(`authoringModel: CliCopilot`). That changed how knowledge is searched and how telemetry works; see
+(`authoringModel: CliCopilot`). That changed how knowledge is searched and where its telemetry comes from; see
 Observability.
 
 | Azure template | Here |
@@ -213,68 +215,82 @@ test user.
 
 ## Observability
 
-**Status: the previous per-agent telemetry does not apply to this agent type. Microsoft documents an
-environment-level telemetry preview; it was set up on the e2e test environment and, in the first 10 hours,
-received no rows at all. Inconclusive, not proven absent: the page allows up to 24 hours.**
+**Status: verified. Environment-level telemetry (preview) delivers this harness agent's conversations to
+Application Insights: the prompt, the reply, each knowledge-search call and its results, the model and the
+user. Dataverse conversation transcripts also record them, with the exact tool errors.**
 
-On the earlier classic agent, a topic emitted a `KnowledgeSearch` custom event to Application Insights
-(question length, answer length, search latency, answered or not; verified end to end, including a privacy
-test that showed the platform's own events log question text, reply text and user identity unless
-**Log conversation details** is turned off). A harness agent has no topics, and checked in the portal:
+The earlier classic agent emitted a `KnowledgeSearch` custom event from a topic. A harness agent has no
+topics and no per-agent Application Insights setting (Settings > Advanced offers only solutions and a
+channel-name suffix), so the two sources below replace it.
 
-- **No per-agent Application Insights setting.** Settings > Advanced offers only solutions and a channel-name suffix. (An environment-level option exists; see below.)
-- **No Dataverse transcripts.** Harness conversations did not appear in the `conversationtranscripts` table
-  (queried directly after several conversations).
-- **What is visible.** The test pane shows each tool call (including failures such as the search error
-  described in Troubleshooting) and a per-conversation credit estimate (about 4 Copilot Credits for a
-  question that searches SharePoint); the admin center shows credit usage per agent once billed usage is
-  reported. The portal's **Monitor** tab exists; it was not evaluated.
+**1. Environment-level export to Application Insights (preview).** Configured by an administrator in the
+Power Platform admin center (Manage > Data export > App Insights > New data export, data type *Copilot
+Studio*), not on the agent. Microsoft's
+[page](https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-environment-level-agent-telemetry)
+names the standard and Microsoft Copilot harnesses and never mentions agents created with
+`pac copilot init --authoring-mode cli-copilot`; **tested here, it covers them.** Prerequisites: a managed
+environment, Application Insights with *Local authentication* on, the public cloud.
 
-**Environment-level telemetry (preview), tried once; no data yet.** Microsoft's
-[environment-level telemetry](https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-environment-level-agent-telemetry)
-exports every agent in an environment to Application Insights, configured by an administrator in the
-Power Platform admin center (an export package of type Copilot Studio), not on the agent. From the pages:
+A marked question to the harness agent produced, within about a minute, rows in `dependencies`:
 
-- **Coverage is unclear for this agent.** Both pages say it covers the standard and the Microsoft Copilot
-  harness, and one note on the same page says only standard-harness agents built in Copilot Studio appear.
-  Neither page mentions CLI-created agents (`pac copilot init --authoring-mode cli-copilot`), so whether this
-  agent emits anything has to be tested.
-- **Prerequisites.** A **managed environment** (the dev and e2e environments here are plain Developer
-  environments), tenant-level Power Platform or Dynamics 365 administrator plus an environment admin role, an
-  Azure Application Insights resource with *Local authentication* on, and the public cloud. Delivery of a new
-  configuration can take up to 24 hours. Licensing and cost are not stated; scripting is not documented.
-- **What it records.** OpenTelemetry-style spans in `dependencies` (`InvokeAgent`, `ExecuteTool`,
-  `OutputMessages`) with the conversation ID, model, tool name, and, importantly, **the user's prompt, the
-  agent's reply, tool arguments and tool results, and the user's id, email and name**. No setting to turn
-  the content or identity off is documented. For a protected-documents agent that is the same exposure as
-  the classic agent's default (an answer withheld from one user by a label would sit in a workspace the
-  label does not govern, and tool results would carry document text), so it should not be enabled on the
-  protected-mode environment, and the workspace needs restricted read access.
-- **Limitations listed on the page:** preview, possible small data loss, truncation of large content, no
-  duration for some traces, no topic events.
+| Span | What it carries |
+|---|---|
+| `InvokeAgent` (root) | the user's prompt (`gen_ai.input.messages`), the reply (`gen_ai.output.messages`), model (`Sonnet46`), duration, conversation and session IDs, channel, **user email, id and name**, client IP |
+| `ExecuteTool` (one per retrieved document) | tool `SharePoint` (type `Knowledge`), `gen_ai.tool.call.arguments` and **`gen_ai.tool.call.result`** (document URI and content), same tool-call ID |
+| `OutputMessages` | the final message (classic agents) |
 
-**What was tried.** Managed Environments enabled on the e2e environment (non-sensitive sample corpus only),
-a Copilot Studio export package pointed at `appi-copilot-agent`, then conversations with this agent
-(including one carrying a unique marker string). A poll of `dependencies` and `requests` every 10 minutes for
-6 hours, and a final count of `dependencies`, `requests`, `traces` and `customEvents` over the last 10 hours,
-all returned **0**. Two caveats: the page says delivery can take up to 24 hours, and the e2e agent's own
-SharePoint search was failing during that window (see Troubleshooting), though the invoke span itself should
-not depend on that. So: no evidence that a CLI-created harness agent is covered, and none that it is not.
-Re-check after 24 hours with `az monitor app-insights query --app appi-copilot-agent -g rg-copilot-agent-obs
---analytics-query "dependencies | take 10" --offset P1D`. If it is still empty, treat this agent type as
-not covered. Undo: delete the export package in the admin center and turn Managed Environments off (it
-carries a premium-license requirement for the environment's users, which this tenant does not hold).
+```kusto
+dependencies
+| where name in ("InvokeAgent", "ExecuteTool", "OutputMessages") and timestamp > ago(1d)
+| extend agent = tostring(customDimensions["gen_ai.agent.name"]),
+         conv = tostring(customDimensions["gen_ai.conversation.id"])
+| project timestamp, name, agent, conv, success, duration, customDimensions
+| order by timestamp desc
+```
 
-`scripts/provision_observability.sh` (Log Analytics workspace with a daily ingestion cap, workspace-based
-Application Insights) still works and is tested, but there is nothing to connect to it for this agent, so
-it is not part of the provisioning path. Teardown removes it with `--delete-observability`.
+Things to know:
+
+- **Activation takes hours.** Conversations in the 40 minutes after the export was created (05:55 to 06:35
+  UTC) produced nothing; the next conversation, about 12.5 hours later, was delivered in under a minute.
+  The page says up to 24 hours for a new configuration. **An early "no rows" proves nothing**, and an empty
+  table with no conversations in the window proves even less: send a marked question, then look.
+- **The spans carry document text and the user's identity.** No setting to turn that off is documented. For
+  a protected-documents agent that is the same exposure as the classic agent's default, so do not enable
+  it on the protected-mode environment, and restrict read access to the workspace. Tool results contain
+  what the user was allowed to retrieve, and the workspace is not governed by the labels.
+- **Managed Environment licensing.** The environment must be managed, which carries a premium-license
+  requirement for its users that this tenant does not hold: fine for a test environment, a decision for
+  production.
+- The destination was verified independently by posting a synthetic span to the ingestion endpoint (seen in
+  `dependencies` within a minute), so an empty table means nothing is being sent, not that the resource is
+  misconfigured. Avoid pointing both agent-level and environment-level telemetry at one Application
+  Insights resource (the classic agent here still does, which is why `customEvents` also fills up).
+- Preview limits from the page: possible small data loss, truncation of long content, no `duration` for some
+  traces, no topic events.
+
+**2. Dataverse conversation transcripts.** Harness conversations *do* land in `conversationtranscripts`
+(an earlier version of this README said they did not; that check was too early, since rows appear with a
+delay of hours). Each transcript holds the messages, the model's reasoning text (`ThinkingTrace`) and a
+`ToolCallTrace` per tool call with its status, **including the exact error**: for the failing searches,
+`sharepoint_semantic_search failed: NotFound in FederationWorkflow`. This is where that error was found.
+Query it with the Dataverse Web API (`/api/data/v9.2/conversationtranscripts`, `content` is JSON); the bot
+is `_bot_conversationtranscriptid_value`.
+
+Also visible: the test pane shows each tool call and a credit estimate (about 4 Copilot Credits for a
+question that searches SharePoint); the admin center shows credit usage per agent once billed usage is
+reported.
+
+`scripts/provision_observability.sh` creates the Log Analytics workspace (daily ingestion cap) and the
+workspace-based Application Insights the export points at. Its printed "connect the agent" step applies to
+classic agents only; for this agent create the export in the admin center. Teardown removes the resources
+with `--delete-observability`; remove the export package and Managed Environments setting separately.
 
 | Azure template | Here | Status |
 |---|---|---|
-| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Environment-level export to Application Insights (`dependencies` spans): documented, preview; set up on e2e, 0 rows in the first 10 hours | Inconclusive |
-| Per-request retrieval score, reranker score, chunk count | Not exposed | Cannot be reproduced |
-| `IsolationForest` over six retrieval features | Needs a telemetry feed; only possible if the export above covers this agent | Not built |
-| HHEM faithfulness score in evals | Needs answer plus retrieved text; custom runner | Not built |
+| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Environment-level export to Application Insights (`dependencies` spans): Environment-level export, preview; verified on this agent | Working (activation took hours) |
+| Per-request retrieval score, reranker score, chunk count | Not exposed; the tool result lists the retrieved documents, with no scores | Partly reproducible (documents, no scores) |
+| `IsolationForest` over six retrieval features | The feed now exists (spans per question and retrieved document); features are limited to counts, latency, success | Not built |
+| HHEM faithfulness score in evals | Answer plus retrieved text are in the `InvokeAgent` and `ExecuteTool` spans; custom runner | Not built |
 | Weekly retrain workflow | | Not built |
 
 What can be measured today comes from the eval runner (latency, recall) and billing data. In the test tenant
@@ -367,7 +383,7 @@ Set in `.env` (see `.env.example`).
 | `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
 | GitHub Actions | `ci.yml` green. `deploy.yml` ran on the harness agent as the app identity: OIDC sign-in, clone, apply, "No local changes detected" (idempotent), publish. `pac` 2.16.1 failed twice while parsing the publish status ("Invalid response format") although the bot record showed the publish had succeeded, then passed on a third run; a verification step handles that error (unit-tested with fake commands, not yet hit live). The step that prints `pac`'s own log on failure found it |
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
-| Telemetry | No per-agent telemetry; environment-level preview set up on e2e, no rows in 10 hours (see Observability) |
+| Telemetry | Environment-level export to Application Insights verified on this agent (prompt, reply, search calls, user); Dataverse transcripts also hold harness conversations (see Observability) |
 | `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
 | New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 
@@ -379,7 +395,7 @@ Set in `.env` (see `.env.example`).
 | `pac auth` fails with "refresh token has expired" | Idle 90 days. Delete the profile and run `pac auth create --deviceCode` again |
 | `pac admin create` rejects `unitedstates` | Pass `--macro-region north-america` (or `europe-uk`, `asia-pacific`); the CLI default is invalid. The scripts do |
 | **"I couldn't find that" for every question, and the test pane's trace shows `sharepoint_lexical_search` / `sharepoint_semantic_search` failing with "Knowledge search · unknown"** | **The signed-in user has no SharePoint-bearing license** (for example Business Premium). The search tools run as that user and fail; the agent then reports "not found", which hides the failure. An unlicensed **site owner** can still open files and fetch them by name, so it looks like a missing document. Assign a license, wait a while for it to reach search, and test as a licensed user. Microsoft publishes nothing on this for harness agents; it was established by testing the same agent as a licensed and an unlicensed user |
-| Search errors or "no results" for a licensed user on a **brand-new site**, while SharePoint's own search (run as a licensed user, not the owner) shows the documents | The agent's search was slow to cover a new site: two sites stayed unusable for hours for two users, while a new file added to a two-day-old site was usable in about 10 minutes. Use an established site, or wait; the cause is not confirmed. Do not conclude "not indexed" from a search run as an unlicensed user |
+| Search errors or "no results" for a licensed user on a **brand-new site**, while SharePoint's own search (run as a licensed user, not the owner) shows the documents | The agent's search was slow to cover a new site: two sites stayed unusable for hours for two users, while a new file added to a two-day-old site was usable in about 10 minutes. The transcript error is `NotFound in FederationWorkflow`; the same site worked about 12 hours later. Use an established site, or wait. Do not conclude "not indexed" from a search run as an unlicensed user |
 | The Agents SDK returns `404 Error discovering conversation endpoints` | The agent is not shared with the signed-in user: Copilot Studio → Share → **Can use**. It is not a denial from the platform |
 | `pac copilot publish` fails "A required argument --bot is missing" | Pass the agent: `pac copilot publish --bot <schema or id>`. The script does |
 | `pac` fails "You must install .NET" after a Homebrew upgrade | `pac` 2.16 targets .NET 10; with only .NET 11 installed set `DOTNET_ROLL_FORWARD=Major` and `DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec` |

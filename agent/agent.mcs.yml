@@ -1,0 +1,10 @@
+mcs.metadata:
+  componentName: OL Knowledge Agent
+kind: GptComponentMetadata
+instructions: Answer questions using only the SharePoint knowledge sources. If the documents do not contain the answer, say you could not find it in the available documents. Never guess.
+gptCapabilities:
+  webBrowsing: false
+
+aISettings:
+  model:
+    modelNameHint: GPT5Chat

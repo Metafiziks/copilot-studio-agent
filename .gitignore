@@ -1,0 +1,12 @@
+# Local Claude Code settings
+.claude/
+
+# Local pac auth cache
+.pac/
+
+# Python
+__pycache__/
+*.pyc
+
+# The agent workspace's own .mcs/ folder (environment binding) ignores itself
+# via agent/.mcs/.gitignore, so nothing extra is needed for it here.

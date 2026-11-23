@@ -12,8 +12,8 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > per-user restriction at site and document level (two users, side by side), CI and OIDC deploy, and a
 > **passing scored eval** (keyword recall 0.99, citation recall 1.00, p95 25.7 s, memory recall 1.00, run
 > as a licensed user). **Not done:** the built-in LLM-judged graders and HHEM, anomaly detection, and
-> per-agent telemetry (an environment-level preview export is set up on one test environment, with nothing
-> received yet). **Two things will silently break it:** a user without a SharePoint-bearing license, and a
+> per-agent telemetry (an environment-level preview export was set up on one test environment; nothing arrived
+> in the first 10 hours). **Two things will silently break it:** a user without a SharePoint-bearing license, and a
 > brand-new SharePoint site (see Troubleshooting). Each section says exactly where it stands.
 
 ## Architecture
@@ -214,7 +214,8 @@ test user.
 ## Observability
 
 **Status: the previous per-agent telemetry does not apply to this agent type. Microsoft documents an
-environment-level telemetry preview that may cover it; it is not set up and untested here.**
+environment-level telemetry preview; it was set up on the e2e test environment and, in the first 10 hours,
+received no rows at all. Inconclusive, not proven absent: the page allows up to 24 hours.**
 
 On the earlier classic agent, a topic emitted a `KnowledgeSearch` custom event to Application Insights
 (question length, answer length, search latency, answered or not; verified end to end, including a privacy
@@ -229,7 +230,7 @@ test that showed the platform's own events log question text, reply text and use
   question that searches SharePoint); the admin center shows credit usage per agent once billed usage is
   reported. The portal's **Monitor** tab exists; it was not evaluated.
 
-**Environment-level telemetry (preview), documented but not tried.** Microsoft's
+**Environment-level telemetry (preview), tried once; no data yet.** Microsoft's
 [environment-level telemetry](https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-environment-level-agent-telemetry)
 exports every agent in an environment to Application Insights, configured by an administrator in the
 Power Platform admin center (an export package of type Copilot Studio), not on the agent. From the pages:
@@ -252,9 +253,17 @@ Power Platform admin center (an export package of type Copilot Studio), not on t
 - **Limitations listed on the page:** preview, possible small data loss, truncation of large content, no
   duration for some traces, no topic events.
 
-Trying it would mean enabling Managed Environments on a test environment holding only the non-sensitive
-sample corpus and creating the export in the admin center, then checking whether any `dependencies` rows
-appear for this agent.
+**What was tried.** Managed Environments enabled on the e2e environment (non-sensitive sample corpus only),
+a Copilot Studio export package pointed at `appi-copilot-agent`, then conversations with this agent
+(including one carrying a unique marker string). A poll of `dependencies` and `requests` every 10 minutes for
+6 hours, and a final count of `dependencies`, `requests`, `traces` and `customEvents` over the last 10 hours,
+all returned **0**. Two caveats: the page says delivery can take up to 24 hours, and the e2e agent's own
+SharePoint search was failing during that window (see Troubleshooting), though the invoke span itself should
+not depend on that. So: no evidence that a CLI-created harness agent is covered, and none that it is not.
+Re-check after 24 hours with `az monitor app-insights query --app appi-copilot-agent -g rg-copilot-agent-obs
+--analytics-query "dependencies | take 10" --offset P1D`. If it is still empty, treat this agent type as
+not covered. Undo: delete the export package in the admin center and turn Managed Environments off (it
+carries a premium-license requirement for the environment's users, which this tenant does not hold).
 
 `scripts/provision_observability.sh` (Log Analytics workspace with a daily ingestion cap, workspace-based
 Application Insights) still works and is tested, but there is nothing to connect to it for this agent, so
@@ -262,7 +271,7 @@ it is not part of the provisioning path. Teardown removes it with `--delete-obse
 
 | Azure template | Here | Status |
 |---|---|---|
-| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Environment-level export to Application Insights (`dependencies` spans): documented, preview, may not cover this agent type | Untested |
+| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Environment-level export to Application Insights (`dependencies` spans): documented, preview; set up on e2e, 0 rows in the first 10 hours | Inconclusive |
 | Per-request retrieval score, reranker score, chunk count | Not exposed | Cannot be reproduced |
 | `IsolationForest` over six retrieval features | Needs a telemetry feed; only possible if the export above covers this agent | Not built |
 | HHEM faithfulness score in evals | Needs answer plus retrieved text; custom runner | Not built |
@@ -358,7 +367,7 @@ Set in `.env` (see `.env.example`).
 | `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
 | GitHub Actions | `ci.yml` green. `deploy.yml` ran on the harness agent as the app identity: OIDC sign-in, clone, apply, "No local changes detected" (idempotent), publish. `pac` 2.16.1 failed twice while parsing the publish status ("Invalid response format") although the bot record showed the publish had succeeded, then passed on a third run; a verification step handles that error (unit-tested with fake commands, not yet hit live). The step that prints `pac`'s own log on failure found it |
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
-| Telemetry | No per-agent telemetry; environment-level preview documented, not tried (see Observability) |
+| Telemetry | No per-agent telemetry; environment-level preview set up on e2e, no rows in 10 hours (see Observability) |
 | `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
 | New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 

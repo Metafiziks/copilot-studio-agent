@@ -238,7 +238,7 @@ set up by hand and are not scripted.
 
 ## CI/CD
 
-**Status: `ci.yml` and `deploy.yml` are verified on GitHub. `eval.yml` is untested: its sign-in secret is stored, but the target agent variables are not set.**
+**Status: `ci.yml` and `deploy.yml` are verified on GitHub against the harness agent. `eval.yml` is untested: it needs the licensed test user's sign-in cache as a secret and the target agent variables, none of which are set for the new agent.**
 
 | Workflow | Trigger | What it does |
 |---|---|---|
@@ -257,9 +257,14 @@ gh variable set DATAVERSE_ENV_URL --env dev --body <url>                        
 
 No secret is stored for deploys. A production environment was deferred.
 
-**Verified runs.** `deploy.yml` signs in with OIDC as the app, binds the workspace, pushes and
-publishes; a run with nothing changed reports "No local changes detected" and still publishes. The
-federated credential and the role were each wrong once before it worked (details below).
+**Verified runs.** `deploy.yml` signs in with OIDC as the app, clones the live agent into a fresh workspace,
+applies `agent/`, pushes and publishes; a run with nothing changed reports "No local changes detected" and
+still publishes. The federated credential and the role were each wrong once before it worked (details
+below). **A publish quirk:** `pac` 2.16.1 sometimes fails after the publish has already succeeded, with
+`System.ArgumentException: Invalid response format` from its status poller. `provision.sh` handles exactly
+that error by reading the bot's `synchronizationstatus` (`pac org fetch`) and passing only if it shows a
+publish that succeeded since the call began; every other error still fails the deploy, and the workflow
+prints `pac`'s own log when a deploy fails.
 
 **Role.** Pushing an agent that another user owns needs organization-level access to the bot and bot
 component tables. In the test environment, `Bot Author`, `Bot Contributor`, `Bot Viewer` and
@@ -314,7 +319,7 @@ Set in `.env` (see `.env.example`).
 | Licensing | Same agent, same question: answered for a SharePoint-licensed user, "not found" for an unlicensed site owner, until that owner was licensed. Root cause of days of failed probes |
 | Eval runner | Scored run completed as a licensed user (table under Evaluations); RAG metrics fail on an unindexed site, memory and latency pass |
 | `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
-| GitHub Actions | `ci.yml` green and `deploy.yml` OIDC deploys verified on the earlier agent shape; the workflows were updated for the harness agent and their first runs on it are pending |
+| GitHub Actions | `ci.yml` green. `deploy.yml` ran on the harness agent as the app identity: OIDC sign-in, clone, apply, "No local changes detected" (idempotent), publish. `pac` 2.16.1 failed twice while parsing the publish status ("Invalid response format") although the bot record showed the publish had succeeded, then passed on a third run; a verification step handles that error (unit-tested with fake commands, not yet hit live). The step that prints `pac`'s own log on failure found it |
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | Not available for this agent type (see Observability) |
 | `eval.yml` | Not run; its variables and secret are not set |

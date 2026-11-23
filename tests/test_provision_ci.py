@@ -109,4 +109,4 @@ def test_protected_mode_adds_the_restricted_site_as_a_second_source(tmp_path):
 
 def test_the_sharing_and_license_reminders_are_printed(tmp_path):
     result = run_provision(tmp_path, "--dry-run", "--skip-sharepoint")
-    assert "End user access" in result.stderr and "SharePoint-bearing license" in result.stderr
+    assert "Can use" in result.stderr and "SharePoint-bearing license" in result.stderr

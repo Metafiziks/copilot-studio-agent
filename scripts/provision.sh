@@ -181,8 +181,8 @@ EOF
 cat >&2 <<EOF
 
   Not scriptable, do these by hand:
-   1. Share the agent: Copilot Studio > agent > Share. Grant users 'End user access'. Without it the
-      Agents SDK gets a 404 for that user.
+   1. Share the agent: Copilot Studio > agent > Share. Add users with 'Can use' (not editor). Without it
+      the Agents SDK gets a 404 for that user, which looks like a denial and is not one.
    2. Make sure every user who will talk to the agent holds a SharePoint-bearing license (for example
       Microsoft 365 Business Premium). The agent searches SharePoint AS the signed-in user, and for an
       unlicensed user the search tools fail (an unlicensed site owner can open files but cannot search

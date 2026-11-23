@@ -103,12 +103,24 @@ log "4/4 GitHub federated credential"
 if [ -z "$GITHUB_REPO" ]; then
   note "skipped (no --github-repo). Re-run with --github-repo owner/repo once the repository exists."
 else
-  subject="repo:${GITHUB_REPO}:environment:${GITHUB_ENV:-dev}"
+  # GitHub's OIDC subject carries immutable numeric owner and repo IDs for newer repositories, so a
+  # name-based subject never matches. Look the IDs up with gh; without gh, fall back to the name form.
+  owner_id=""; repo_id=""
+  if command -v gh >/dev/null 2>&1; then
+    ids="$(gh api "repos/${GITHUB_REPO}" --jq '"\(.owner.id) \(.id)"' 2>/dev/null || true)"
+    if [ -n "$ids" ]; then owner_id="${ids% *}"; repo_id="${ids#* }"; fi
+  fi
+  [ -n "$repo_id" ] || warn "could not read the GitHub owner/repo IDs (is gh signed in and the repo visible?); using the name-based subject, which does not match newer repositories"
+  subject="$(github_oidc_subject "$GITHUB_REPO" "${GITHUB_ENV:-dev}" "$owner_id" "$repo_id")"
   cred_name="github-$(printf '%s' "${GITHUB_REPO}-${GITHUB_ENV:-dev}" | tr '/' '-')"
-  existing="$(az ad app federated-credential list --id "$APP_ID" --query "[?name=='$cred_name'].name | [0]" -o tsv 2>/dev/null || true)"
-  if [ -n "$existing" ]; then
+  existing_subject="$(az ad app federated-credential list --id "$APP_ID" --query "[?name=='$cred_name'].subject | [0]" -o tsv 2>/dev/null || true)"
+  if [ "$existing_subject" = "$subject" ]; then
     note "found: $cred_name"
   else
+    if [ -n "$existing_subject" ]; then
+      note "replacing $cred_name (subject was $existing_subject)"
+      run az ad app federated-credential delete --id "$APP_ID" --federated-credential-id "$cred_name"
+    fi
     params="$(mktemp)"
     cat > "$params" <<EOF
 {"name": "$cred_name", "issuer": "https://token.actions.githubusercontent.com",

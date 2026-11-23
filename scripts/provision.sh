@@ -2,11 +2,13 @@
 # provision.sh - stand up the whole stack: environment, SharePoint sites, agent, knowledge.
 # The Copilot Studio counterpart of `azd up`.
 #
-# Usage: bash scripts/provision.sh [--dry-run] [--skip-sharepoint] [--skip-agent]
+# Usage: bash scripts/provision.sh [--dry-run] [--skip-sharepoint] [--skip-agent] [--no-create]
 #
 #   --dry-run          Print every mutating step instead of running it (read-only checks still run).
 #   --skip-sharepoint  Leave sites and documents alone.
 #   --skip-agent       Leave the environment's agent alone.
+#   --no-create        Never create the agent: fail if it is not found. Use for deploys, where "not found"
+#                      can mean "not visible to this identity" and creating would be wrong.
 #
 # Configuration comes from .env (see .env.example). Idempotent: existing environments, groups and
 # agents are reused. Stages:
@@ -21,12 +23,14 @@ set -euo pipefail
 
 SKIP_SHAREPOINT=false
 SKIP_AGENT=false
+NO_CREATE=false
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
     --skip-sharepoint) SKIP_SHAREPOINT=true ;;
     --skip-agent) SKIP_AGENT=true ;;
-    -h|--help) sed -n '2,15p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    --no-create) NO_CREATE=true ;;
+    -h|--help) sed -n '2,17p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "unknown option: $arg" ;;
   esac
 done
@@ -115,6 +119,9 @@ if [ "$SKIP_AGENT" = true ]; then
 else
   log "4/5 agent '$AGENT_NAME'"
   AGENT_ID="$(agent_id)"
+  if [ -z "$AGENT_ID" ] && [ "$NO_CREATE" = true ]; then
+    die "agent '$AGENT_NAME' not found in $ENV_URL and --no-create was given. It may not exist, or the signed-in identity may lack read access to it (a user-level role cannot see an agent another user owns)."
+  fi
   if [ -z "$AGENT_ID" ]; then
     note "not found; creating from the template (pack cannot carry knowledge, so it is added after)"
     stage="$(mktemp -d)"

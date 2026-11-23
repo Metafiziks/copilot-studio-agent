@@ -46,6 +46,21 @@ retry_on() {
   return 1
 }
 
+# github_oidc_subject <owner/repo> <environment> [owner-id repo-id]
+# The `sub` claim GitHub puts in its OIDC token, which an Entra federated credential must match
+# exactly. Newer repositories use immutable numeric IDs, `repo:owner@<id>/name@<id>:environment:E`;
+# the classic name-only form `repo:owner/name:environment:E` never matches those and fails with
+# AADSTS700213. Without IDs this returns the classic form.
+github_oidc_subject() {
+  local repo="$1" env_name="$2" owner_id="${3:-}" repo_id="${4:-}"
+  local owner="${repo%%/*}" name="${repo##*/}"
+  if [ -n "$owner_id" ] && [ -n "$repo_id" ]; then
+    printf 'repo:%s@%s/%s@%s:environment:%s' "$owner" "$owner_id" "$name" "$repo_id" "$env_name"
+  else
+    printf 'repo:%s/%s:environment:%s' "$owner" "$name" "$env_name"
+  fi
+}
+
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "'$1' is required. $2"
 }

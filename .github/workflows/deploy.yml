@@ -7,7 +7,9 @@ name: Deploy agent
 #   * GitHub environment `dev`, with the variables listed under `env:` below
 #   * the app registration's federated credential, subject repo:<owner>/<repo>:environment:dev
 #     (bash scripts/setup_entra_app.sh --github-repo <owner>/<repo> --github-environment dev)
-#   * the app registered as an application user in the Dataverse environment with the Bot Author role
+#   * the app registered as an application user in the Dataverse environment with an organization-level
+#     role such as System Customizer (Bot Author is user-level and cannot see an agent another user owns)
+#   * the federated credential's subject uses GitHub's immutable IDs; setup_entra_app.sh handles that
 on:
   push:
     branches: [main]
@@ -59,5 +61,6 @@ jobs:
             --applicationId "$CLIENT_ID" --environment "$ENV_URL"
 
       - name: Deploy the agent
-        # Sites and documents are provisioned separately (scripts/provision.sh without this flag).
-        run: bash scripts/provision.sh --skip-sharepoint
+        # Sites and documents are provisioned separately. --no-create makes a missing or invisible agent a
+        # hard failure instead of a re-import of the template over it.
+        run: bash scripts/provision.sh --skip-sharepoint --no-create

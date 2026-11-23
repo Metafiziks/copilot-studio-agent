@@ -143,7 +143,7 @@ version would use the signals that are exposed (latency, reference counts, token
 
 ## CI/CD
 
-**Status: three workflows written and linted (`actionlint` clean); first runs pending.**
+**Status: `ci.yml` passes on GitHub. `deploy.yml` signs in with OIDC successfully but is blocked on a Dataverse role (below). `eval.yml` is untested.**
 
 | Workflow | Trigger | What it does |
 |---|---|---|
@@ -155,13 +155,24 @@ One-time setup, all scriptable except the last two:
 
 ```bash
 bash scripts/setup_entra_app.sh --github-repo owner/repo --github-environment dev   # federated credential
-pac admin assign-user --environment <url> --user <app-client-id> --application-user --role "Bot Author"
+pac admin assign-user --environment <url> --user <app-client-id> --application-user --role "System Customizer"   # see the role note below
 gh api -X PUT repos/owner/repo/environments/dev                                      # the environment name is part of the credential's subject
 gh variable set DATAVERSE_ENV_URL --env dev --body <url>                             # plus EVAL_CLIENT_ID, EVAL_TENANT_ID, SP_HOST, KB_ACCESS_MODE, KB_SITE_NICK, RESTRICTED_SITE_NICK
 ```
 
-No secret is stored for deploys. The role is the narrow `Bot Author`; whether it is enough to push and
-publish is what the first deploy run shows. A production environment was deferred.
+No secret is stored for deploys. A production environment was deferred.
+
+**Role.** Pushing an agent that another user owns needs organization-level access to the bot and bot
+component tables. In the test environment, `Bot Author`, `Bot Contributor`, `Bot Viewer` and
+`Environment Maker` are all **user-level** (the app sees only records it owns, so `pac copilot list`
+returned nothing for it), while `System Customizer` is **organization-level** for read, write and
+create. `System Customizer` is the narrowest standard role that works. `deploy.yml` runs
+`provision.sh --no-create`, so an agent the identity cannot see is a hard failure and never a re-import
+of the template.
+
+**Federated credential subject.** GitHub puts immutable numeric IDs into its OIDC subject for newer
+repositories (`repo:owner@<id>/name@<id>:environment:dev`). A name-based credential never matches and
+fails with `AADSTS700213`. `setup_entra_app.sh` looks the IDs up with `gh` and replaces a stale credential.
 
 One constraint shapes the design: a federated GitHub identity is an **app**, and the Power Platform API
 offers an application permission (`CopilotStudio.Copilots.Invoke`), but this agent retrieves SharePoint
@@ -215,6 +226,8 @@ Set in `.env` (see `.env.example`).
 | Re-provisioning fails because the site name exists | A deleted group is soft-deleted for 30 days. Use `teardown.sh`, which purges, or purge it in Entra |
 | Denied user can open or retrieve a labeled file | The file was labeled before SharePoint could process it. Label a never-labeled file inside SharePoint ([guide](guides/purview.md)) |
 | No Sensitivity button in Word for the web | Use the account the label is published to, a normal (not incognito) window, Editing mode; see the guide |
+| Deploy fails with `AADSTS700213: No matching federated identity record` | The credential's subject lacks GitHub's immutable owner/repo IDs. Re-run `scripts/setup_entra_app.sh --github-repo owner/repo --github-environment dev` |
+| Deploy says the agent was not found (`--no-create`) | The deploying app cannot read it, usually a user-level role; see the role note under CI/CD |
 | SharePoint REST or file download returns 401 | Expected with an Azure CLI token. The scripts use Microsoft Graph |
 | `GID: bad math expression` in zsh | `GID` is read-only in zsh; use another variable name |
 | The portal says the model GPT-5 Chat was retired | The stored `modelNameHint` is still `GPT5Chat` and the platform substitutes a newer model at runtime until 12/12/2026; pick a current model in the portal, `pac copilot pull`, and commit it |

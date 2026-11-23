@@ -60,6 +60,22 @@ def test_retry_on_gives_up_after_the_attempt_limit(tmp_path):
     assert (tmp_path / "count").read_text().strip() == "3"
 
 
+def test_github_oidc_subject_uses_immutable_ids_when_known(tmp_path):
+    # The shape GitHub actually presented, which broke a name-based credential (AADSTS700213).
+    out = run_bash("github_oidc_subject Metafiziks/copilot-studio-agent dev 230289592 1468152408", tmp_path)
+    assert out.stdout == "repo:Metafiziks@230289592/copilot-studio-agent@1468152408:environment:dev"
+
+
+def test_github_oidc_subject_falls_back_to_the_name_form(tmp_path):
+    out = run_bash("github_oidc_subject octo/hello prod", tmp_path)
+    assert out.stdout == "repo:octo/hello:environment:prod"
+
+
+def test_github_oidc_subject_needs_both_ids_for_the_immutable_form(tmp_path):
+    out = run_bash("github_oidc_subject octo/hello prod 123", tmp_path)
+    assert out.stdout == "repo:octo/hello:environment:prod"
+
+
 def test_load_env_applies_defaults_and_validates_mode(tmp_path):
     ok = run_bash('load_env; echo "$ENV_NAME|$KB_ACCESS_MODE|$ENV_REGION"', tmp_path)
     assert ok.returncode == 0 and ok.stdout.strip() == "copilot-agent-dev|sample|north-america"

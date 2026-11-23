@@ -54,6 +54,39 @@ def test_existing_agent_is_reused_and_pushed_and_published(tmp_path):
     assert "pac copilot push" in result.stderr and f"pac copilot publish --bot {AGENT_ID}" in result.stderr
 
 
+def run_provision_without_agent(tmp_path: Path, *args: str) -> subprocess.CompletedProcess:
+    """Like run_provision, but `pac copilot list` returns nothing: no agent, or one it cannot see."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stub(bin_dir / "pac", """
+case "$1 $2" in
+  "auth list") echo "[1] * UNIVERSAL ci  app  Public  dev  https://x.crm.dynamics.com/" ;;
+  "copilot list") echo "No Chatbots found in the environment." ;;
+  *) echo "pac $*" ;;
+esac
+""")
+    (bin_dir / "python3").symlink_to(sys.executable)
+    env = {"PATH": f"{bin_dir}:/usr/bin:/bin", "HOME": str(tmp_path), "SP_HOST": "x.sharepoint.com",
+           "ENV_URL": "https://x.crm.dynamics.com/"}
+    return subprocess.run(["bash", str(ROOT / "scripts" / "provision.sh"), *args],
+                          capture_output=True, text=True, env=env, cwd=tmp_path)
+
+
+def test_no_create_refuses_to_create_when_the_agent_is_not_visible(tmp_path):
+    # The CI failure: an identity that cannot see the agent made the script re-import the template.
+    result = run_provision_without_agent(tmp_path, "--dry-run", "--skip-sharepoint", "--no-create")
+    assert result.returncode != 0
+    assert "--no-create" in result.stderr and "cannot see an agent" in result.stderr
+    assert "creating from the template" not in result.stderr
+    assert "pac solution import" not in result.stderr
+
+
+def test_without_no_create_a_missing_agent_is_created(tmp_path):
+    result = run_provision_without_agent(tmp_path, "--dry-run", "--skip-sharepoint")
+    assert result.returncode == 0, result.stderr
+    assert "creating from the template" in result.stderr
+
+
 def test_protected_mode_still_requires_users_when_sharepoint_runs(tmp_path):
     result = run_provision(tmp_path, "--dry-run", extra_env={"KB_ACCESS_MODE": "protected"})
     assert result.returncode != 0 and "ALLOWED_USER" in result.stderr

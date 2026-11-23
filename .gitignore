@@ -16,3 +16,7 @@ __pycache__/
 .build/
 .venv/
 .pytest_cache/
+
+.venv-eval/
+.token_cache.json
+eval_results.json

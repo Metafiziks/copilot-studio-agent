@@ -57,15 +57,19 @@ def az_token() -> str:
 def group_payload(title: str, nick: str, description: str = "", visibility: str = "Private") -> dict:
     if visibility not in ("Private", "Public"):
         raise ValueError("visibility must be Private or Public")
-    return {
+    payload = {
         "displayName": title,
-        "description": description,
         "mailNickname": nick,
         "groupTypes": ["Unified"],
         "mailEnabled": True,
         "securityEnabled": False,
         "visibility": visibility,
     }
+    if description:
+        # Graph rejects an empty description ("Invalid value specified for property 'description'"),
+        # so the field is only sent when there is text.
+        payload["description"] = description
+    return payload
 
 
 def site_web_url(host: str, nick: str) -> str:

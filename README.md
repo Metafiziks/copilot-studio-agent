@@ -6,9 +6,10 @@ what the **signed-in user** is allowed to see. It is the Copilot Studio counterp
 [azd-foundry-search-agent](https://github.com/Metafiziks/azd-foundry-search-agent): same sample
 corpus, same eval cases, same protected-mode idea, different platform.
 
-> **Status.** Provisioning, sample corpus, two-level access restriction and the tests are done and
-> were exercised against a real tenant. Evaluations, memory, observability and CI/CD are
-> **planned, not built**; each section below says exactly where it stands.
+> **Status.** Provisioning (verified end to end on a fresh environment), the sample corpus,
+> two-level access restriction and the tests are done and were exercised against a real tenant. The
+> evaluation runner is built and unit-tested, with its first live results pending. Memory,
+> observability and CI/CD are **planned, not built**; each section below says exactly where it stands.
 
 ## Architecture
 
@@ -83,10 +84,27 @@ sensitivity label.
 
 ## Evaluations
 
-**Status: cases ready, runner and thresholds not built.** `tests/eval_cases.json` holds the same 13
-cases as the Azure template (12 RAG cases with expected keywords and sources, one two-turn memory
-case), with source names mapped to `.docx`. Export them for Copilot Studio's built-in
-[Agent Evaluation](https://learn.microsoft.com/microsoft-copilot-studio/analytics-agent-evaluation-create):
+**Status: runner built and unit-tested; no results from a fully indexed agent yet.**
+`tests/eval_cases.json` holds the same 13 cases as the Azure template (12 RAG cases with expected
+keywords and sources, one two-turn memory case), with source names mapped to `.docx`.
+
+**Deterministic metrics** (keyword recall, citation recall, p95 latency, failed calls) run from a
+script that calls the agent as a signed-in user through Microsoft's Agents SDK. One-time setup:
+
+```bash
+bash scripts/setup_entra_app.sh          # app registration, no secret; prints EVAL_CLIENT_ID / EVAL_TENANT_ID
+python3 -m venv .venv-eval && .venv-eval/bin/pip install microsoft-agents-copilotstudio-client msal
+# put EVAL_CLIENT_ID, EVAL_TENANT_ID, AGENT_ENVIRONMENT_ID, AGENT_SCHEMA_NAME in .env
+.venv-eval/bin/python scripts/run_evals.py          # device-code sign-in on first use; exits 1 on a failed gate
+```
+
+Thresholds match the Azure template where a counterpart exists: keyword recall ≥ 0.65, citation recall
+≥ 0.60, p95 ≤ 45 s, and any failed call or empty answer fails the run. It must be a **real user**: the
+agent retrieves SharePoint as the signed-in user, and an app-only caller has none.
+
+**LLM-judged metrics** (relevance, groundedness) come from Copilot Studio's built-in
+[Agent Evaluation](https://learn.microsoft.com/microsoft-copilot-studio/analytics-agent-evaluation-create).
+Export the cases for it:
 
 ```bash
 python3 scripts/export_eval_csv.py      # writes .build/eval_cases.csv
@@ -99,13 +117,15 @@ Import it under **Evaluation → New evaluation → Import**. The file has two c
 |---|---|---|
 | Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Not run yet |
 | Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Not run yet |
-| Keyword recall | Built-in Keyword match | Not run yet; the CSV writes keywords comma-separated and how the method reads that is unverified |
-| Citation recall | No built-in grader found | Needs a custom runner |
-| p95 latency | No built-in grader found | Needs a custom runner |
-| HHEM hallucination score | Not available | Needs a custom runner |
+| Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | Runner built; the CSV writes keywords comma-separated and how Keyword match reads that is unverified |
+| Citation recall | `scripts/run_evals.py` | Runner built; how citations appear in replies is being confirmed against a live reply |
+| p95 latency | `scripts/run_evals.py` | Runner built |
+| HHEM hallucination score | Not available | Needs a custom runner; not built |
 | Memory recall | See Memory | Not built |
 
-The Evaluation API can trigger runs from CI. The 13 cases were **not run** against this agent.
+The built-in Evaluation REST API (`api.powerplatform.com/copilotstudio/.../makerevaluation/testsets/{id}/run`)
+needs a **user** access token too, and its documentation does not name the scope or say whether the
+draft or published agent is evaluated, so triggering it from a script is not implemented.
 
 ## Memory
 
@@ -123,9 +143,18 @@ version would use the signals that are exposed (latency, reference counts, token
 
 ## CI/CD
 
-**Status: not built.** `pac auth create --githubFederated` supports GitHub OIDC without a client
-secret. It needs an Entra app registration with a federated credential and an application user in
-the environment. No workflows are committed, and a production environment was deferred.
+**Status: identity prepared, workflows not built.** `pac auth create --githubFederated` supports
+GitHub OIDC without a client secret. `bash scripts/setup_entra_app.sh --github-repo owner/repo
+--github-environment dev` adds the matching federated credential to the app registration once the
+repository exists; the app also needs an **application user** in the target environment. No workflows
+are committed, and a production environment was deferred.
+
+One constraint shapes the design: a federated GitHub identity is an **app**, and the Power Platform API
+offers an application permission (`CopilotStudio.Copilots.Invoke`), but this agent retrieves SharePoint
+as the **signed-in user**. An app-only call has no user for SharePoint to trim by, so I expect its
+retrieval to come back empty (not tested). Deploying with `pac` can run from CI under the federated
+identity; evals need a user, so they run on demand from a signed-in session unless a dedicated test
+user's refresh token is stored as a secret, which breaks on conditional access and idle expiry.
 
 ## Configuration
 
@@ -141,17 +170,22 @@ Set in `.env` (see `.env.example`).
 | `AGENT_NAME` / `PUBLISHER_PREFIX` / `SOLUTION_NAME` | Agent display name, publisher prefix, solution name |
 | `KB_SITE_NICK` / `KB_SITE_TITLE` | Main site (default `ol-knowledge`) |
 | `RESTRICTED_SITE_NICK` / `RESTRICTED_SITE_TITLE` | Restricted site in protected mode (default `ol-restricted`) |
+| `EVAL_CLIENT_ID` / `EVAL_TENANT_ID` | Evals: the app registration from `scripts/setup_entra_app.sh` and its tenant |
+| `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME` | Evals: the agent to call (Copilot Studio > Settings > Advanced > Metadata) |
 
 ## Verification so far
 
 | What | Result |
 |---|---|
-| Unit tests | 43 pass (`pytest`): corpus and `.docx` conversion, knowledge rendering, SharePoint/Graph client with a stubbed transport, eval cases and CSV export |
-| `provision.sh --dry-run`, both modes | Ran against a real tenant: found the existing environment and agent, printed every mutating step, changed no tracked files |
-| SharePoint pipeline, for real | Created a throwaway private site, re-ran it (idempotent), uploaded the 6 converted documents with subfolders, then deleted and purged the group so the name is reusable |
-| Environment, agent, knowledge, sharing | Each step was done by hand against the same tenant earlier; the **whole script has not been run end to end** to create a fresh environment and agent |
+| Unit tests | 60 pass (`pytest`): corpus and `.docx` conversion, knowledge rendering, SharePoint/Graph client with a stubbed transport, shell helpers (retry, config), eval cases and CSV export, eval metrics and gating |
+| `provision.sh`, end to end | Ran on a **fresh environment** with a new site: created the environment, site and 6 documents, created the agent from the template, bound the workspace, pushed the knowledge source and published, in about 2.5 minutes. A re-run reused everything and pushed nothing. Server-side check: the agent and its knowledge source exist and `webBrowsing`, `useModelKnowledge` and Entra `Integrated` auth survived the round trip |
+| Bugs that run found | Graph rejects an empty group `description` (fixed, tested); a just-created environment refuses async imports for a few minutes, so the import now retries on that specific error (tested with fake commands; not hit live because the environment was already ready) |
+| `provision.sh --dry-run`, both modes | Ran against a real tenant, changed no tracked files. **Protected mode was only dry-run**, not provisioned for real |
+| SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, all exercised for real |
+| `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
+| Eval runner | First live call succeeded (device-code sign-in, user token, agent reply in 20 s). The agent's answer was the fallback because the new site was not yet indexed; results pending |
 | Access restriction | Demonstrated at site and document level in the test pane; see [guides/purview.md](guides/purview.md) |
-| Evals, memory, telemetry, CI/CD | Not run |
+| Memory, telemetry, CI workflows | Not run |
 
 ## Troubleshooting
 

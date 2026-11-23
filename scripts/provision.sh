@@ -117,7 +117,9 @@ else
     rsync -a --exclude knowledge --exclude .mcs "$ROOT/agent/" "$stage/workspace/"
     run pac copilot pack --publisher-prefix "$PUBLISHER_PREFIX" --project-dir "$stage/workspace" \
       --solution-name "$SOLUTION_NAME" --output-path "$stage"
-    run pac solution import --path "$stage/$SOLUTION_NAME.zip" --publish-changes --async --max-async-wait-time 30
+    # A just-created environment answers "Async operations are currently disabled" for a few minutes.
+    run retry_on 'Async operations are currently disabled' 30 30 \
+      pac solution import --path "$stage/$SOLUTION_NAME.zip" --publish-changes --async --max-async-wait-time 30
     if [ "$DRY_RUN" = false ]; then
       AGENT_ID="$(agent_id)"
       [ -n "$AGENT_ID" ] || die "agent not found after import; check: pac copilot list"

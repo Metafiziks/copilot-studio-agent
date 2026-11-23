@@ -24,6 +24,28 @@ run() {
   fi
 }
 
+# retry_on <regex> <attempts> <wait-seconds> <command...>
+# Run the command. If it fails and its output matches <regex>, wait and try again, up to <attempts>
+# times. Any other failure returns immediately. Used for conditions that clear on their own, such as
+# a freshly created environment that is not yet ready for async operations.
+retry_on() {
+  local pattern="$1" attempts="$2" wait="$3"
+  shift 3
+  local out i
+  for i in $(seq 1 "$attempts"); do
+    if out="$("$@" 2>&1)"; then
+      # RETRY_QUIET=true hides the output of a successful run (failures are always shown).
+      [ "${RETRY_QUIET:-false}" = true ] || printf '%s\n' "$out" >&2
+      return 0
+    fi
+    printf '%s\n' "$out" >&2
+    printf '%s' "$out" | grep -Eqi "$pattern" || return 1
+    note "not ready yet ($i/$attempts); waiting ${wait}s ..."
+    sleep "$wait"
+  done
+  return 1
+}
+
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "'$1' is required. $2"
 }

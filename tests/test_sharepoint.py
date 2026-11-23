@@ -29,6 +29,13 @@ def test_group_payload_is_a_private_unified_group():
     assert p["mailNickname"] == "ol-restricted" and p["securityEnabled"] is False
 
 
+def test_group_payload_omits_an_empty_description():
+    # Graph returns 400 for description "", which broke the first end-to-end provision run.
+    assert "description" not in sharepoint.group_payload("T", "nick")
+    assert "description" not in sharepoint.group_payload("T", "nick", description="")
+    assert sharepoint.group_payload("T", "nick", "text")["description"] == "text"
+
+
 def test_group_payload_rejects_unknown_visibility():
     with pytest.raises(ValueError):
         sharepoint.group_payload("t", "n", visibility="HiddenMembership")

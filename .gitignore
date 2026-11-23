@@ -10,3 +10,9 @@ __pycache__/
 
 # The agent workspace's own .mcs/ folder (environment binding) ignores itself
 # via agent/.mcs/.gitignore, so nothing extra is needed for it here.
+
+# Local config and build output
+.env
+.build/
+.venv/
+.pytest_cache/

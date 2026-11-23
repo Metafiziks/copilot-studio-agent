@@ -1,0 +1,197 @@
+[
+  {
+    "id": "line-2-daily-startup-inspection-items",
+    "category": "maintenance",
+    "question": "For Line 2 belt conveyors, what must operators check during the daily inspection before startup?",
+    "expected_keywords": [
+      "unusual noise",
+      "belt damage",
+      "loose fasteners",
+      "foreign objects",
+      "visible guarding issues"
+    ],
+    "expected_sources": [
+      "conveyor_pm_manual.docx"
+    ]
+  },
+  {
+    "id": "emergency-stop-testing-and-failure-action",
+    "category": "maintenance",
+    "question": "How often must emergency stop pull cords and buttons on the conveyors be tested, and what must be done if any device fails?",
+    "expected_keywords": [
+      "emergency stop",
+      "pull cords",
+      "buttons",
+      "tested weekly",
+      "removed from service",
+      "repaired"
+    ],
+    "expected_sources": [
+      "conveyor_pm_manual.docx"
+    ]
+  },
+  {
+    "id": "hydraulic-press-oil-leak-response",
+    "category": "maintenance",
+    "question": "I found oil under a hydraulic press HP-120 on the floor. What immediate steps should I take according to the Hydraulic Press Troubleshooting Guide?",
+    "expected_keywords": [
+      "stop the machine",
+      "notify maintenance",
+      "absorbent pads",
+      "spill response"
+    ],
+    "expected_sources": [
+      "hydraulic_press_troubleshooting.docx"
+    ]
+  },
+  {
+    "id": "hydraulic-press-restart-verifications",
+    "category": "maintenance",
+    "question": "Before returning a hydraulic press to production after maintenance, what must maintenance verify?",
+    "expected_keywords": [
+      "guard placement",
+      "pressure settings",
+      "leak-free operation",
+      "emergency stop",
+      "dry cycle testing"
+    ],
+    "expected_sources": [
+      "hydraulic_press_troubleshooting.docx"
+    ]
+  },
+  {
+    "id": "containment-steps-repeated-defects",
+    "category": "quality",
+    "question": "If repeated defects are found in a finished goods lot before shipment, what containment steps are required?",
+    "expected_keywords": [
+      "stop shipment",
+      "affected lot",
+      "notify Quality Assurance",
+      "last known",
+      "begin containment"
+    ],
+    "expected_sources": [
+      "finished_goods_defect_standard.docx"
+    ]
+  },
+  {
+    "id": "classification-failed-packaging-seal",
+    "category": "quality",
+    "question": "How should a failed packaging seal on a finished good be classified, and what action is required before release?",
+    "expected_keywords": [
+      "Major Defect",
+      "failed packaging seal",
+      "supervisor review",
+      "possible rework",
+      "rejection"
+    ],
+    "expected_sources": [
+      "finished_goods_defect_standard.docx"
+    ]
+  },
+  {
+    "id": "verify-incoming-inspection-items",
+    "category": "quality",
+    "question": "At receiving, which specific items must I verify during incoming inspection before releasing raw materials to production?",
+    "expected_keywords": [
+      "supplier name",
+      "purchase order",
+      "lot number",
+      "certificate of analysis",
+      "packaging condition",
+      "visible damage"
+    ],
+    "expected_sources": [
+      "incoming_material_inspection_standard.docx"
+    ]
+  },
+  {
+    "id": "quarantine-process-for-rejected-lots",
+    "category": "quality",
+    "question": "If a lot fails incoming inspection, what is the required quarantine process: where must we place the rejected materials, how must they be labeled, and who must release them before they can be used in production?",
+    "expected_keywords": [
+      "quarantine area",
+      "hold tag",
+      "Quality Assurance",
+      "used in production"
+    ],
+    "expected_sources": [
+      "incoming_material_inspection_standard.docx"
+    ]
+  },
+  {
+    "id": "line-clearance-triggers-during-changeover",
+    "category": "quality",
+    "question": "During changeover, what events require us to perform line clearance before restarting production? Please list all the triggers.",
+    "expected_keywords": [
+      "new product",
+      "lot",
+      "work order",
+      "packaging configuration",
+      "label set"
+    ],
+    "expected_sources": [
+      "line_clearance_standard.docx"
+    ]
+  },
+  {
+    "id": "steps-if-line-clearance-error-found",
+    "category": "quality",
+    "question": "If we discover a line clearance error after changeover (for example, old labels left at the workstation), what immediate steps are required before restarting the line?",
+    "expected_keywords": [
+      "stop the line",
+      "segregate affected product",
+      "notify Quality Assurance",
+      "document the issue"
+    ],
+    "expected_sources": [
+      "line_clearance_standard.docx"
+    ]
+  },
+  {
+    "id": "supervisor-lock-removal-exception-steps",
+    "category": "safety",
+    "question": "If a maintenance technician who applied a lock is unavailable, what steps must a floor supervisor follow before removing the lock under the lockout tagout exception process?",
+    "expected_keywords": [
+      "contact Plant Safety",
+      "not on site",
+      "inspect the equipment",
+      "document approval"
+    ],
+    "expected_sources": [
+      "lockout_tagout_procedure.docx"
+    ]
+  },
+  {
+    "id": "verify-zero-energy-procedure",
+    "category": "safety",
+    "question": "When a line operator services powered production equipment under lockout tagout, how exactly should they verify zero energy per the procedure?",
+    "expected_keywords": [
+      "verify zero energy",
+      "attempting to start",
+      "normal controls",
+      "off position"
+    ],
+    "expected_sources": [
+      "lockout_tagout_procedure.docx"
+    ]
+  },
+  {
+    "id": "memory-preference-recall",
+    "category": "memory",
+    "memory": true,
+    "turns": [
+      {
+        "question": "Please remember this for future manufacturing support: my preferred maintenance shift is second shift and my preferred unit label is Line 2."
+      },
+      {
+        "question": "For my future manufacturing support requests, which maintenance shift and unit label should you use for me?"
+      }
+    ],
+    "expected_keywords": [
+      "second shift",
+      "Line 2"
+    ],
+    "expected_sources": []
+  }
+]

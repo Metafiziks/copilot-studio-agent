@@ -1,6 +1,20 @@
 # Setup
 
+`bash scripts/provision.sh` automates sections 3 to 6 below (environment, agent, knowledge,
+SharePoint sites); this guide is the manual reference behind it and a map of what each script does
+under the hood. Section 5 (sharing) and the label step in [purview.md](purview.md) cannot be scripted.
+
 Placeholders in `<angle brackets>` are yours to fill in. Commands were run on macOS.
+
+## Development
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install pytest
+.venv/bin/python -m pytest -q          # unit tests; no network or tenant needed
+bash scripts/provision.sh --dry-run    # prints every mutating step; read-only checks run for real
+```
+
+The scripts use only the Python standard library, plus `pac` and `az` for sign-in.
 
 ## 1. Tooling
 

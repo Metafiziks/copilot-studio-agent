@@ -156,15 +156,26 @@ Export the cases for it:
 python3 scripts/export_eval_csv.py      # writes .build/eval_cases.csv
 ```
 
-Import it under **Evaluation → New evaluation → Import**. The file has two columns (`Question`,
-`Expected response`); the test method is chosen in the UI afterwards. The portal's **Evaluate** tab exists
-for harness agents; running the built-in graders against this agent was not tried. How each Azure metric
-maps:
+Import it under **Evaluate → Create your first evaluation → Import**. What was found doing exactly that on
+the harness agent:
+
+- The **Evaluate** tab exists for harness agents, and the 12 single-turn cases imported (the memory case is
+  multi-turn and is skipped). Methods offered: General quality, Content safety, Compare meaning,
+  Capability use, Keyword match, Text similarity, Exact match, Classification.
+- **Keyword match does not read the CSV.** It wants keywords typed per row in the UI (Any or All applies to
+  the whole set); the `Expected response` column did not populate them. Not worth ~60 hand-typed entries
+  when `run_evals.py` already scores keyword recall, so only **General quality** (the LLM-judged one) is set.
+- **A run needs an authenticated account** (Manage profile and connections). The only choice is "Add an
+  account", an OAuth sign-in with that user's credentials, so it is a human step. The evaluation
+  ("RAG quality - e2e", 12 cases, General quality) is saved on the e2e agent; pick the account and press
+  Run. Results were not produced here.
+
+How each Azure metric maps:
 
 | Azure metric | Copilot Studio | Status |
 |---|---|---|
-| Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Not run |
-| Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Not run |
+| Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Configured, not run (needs an account sign-in) |
+| Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Configured, not run (needs an account sign-in) |
 | Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.986** |
 | Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
 | p95 latency | `scripts/run_evals.py` | **25.7 s** |
@@ -305,6 +316,10 @@ set up by hand and are not scripted.
 |---|---|---|
 | `ci.yml` | push to `main`, pull requests | Unit tests and shell syntax checks. No tenant access, no secrets |
 | `deploy.yml` | push to `main` touching `agent/`, or manual | Signs in to Power Platform with **GitHub OIDC** (`pac auth create --githubFederated`) and runs `provision.sh --skip-sharepoint` to push and publish the agent |
+| e2e eval | The scripted eval also passes on the e2e agent against the sample corpus in its own new site `ol-eval-corpus` (keyword recall 0.965, citation 1.000, p95 34.6 s, memory 1.00), which failed with `NotFound in FederationWorkflow` about 12 hours earlier. The flat upload into an established site (`--with-corpus`) is therefore a precaution, not a requirement |
+| Portal Monitor tab | Works for the harness agent, fed by the conversation transcripts: sessions, daily users, duration, success rate, with a delay of hours. Its 0% success and "no tool use" mirrored the failed searches, and it had not yet shown the newest sessions |
+| Credit limits | 1,000 Copilot Credits per agent with *Stop usage* at 100% and an 80% notification, on both `OL Memory Agent` entries (dev and e2e), set in the admin center under Licensing > Copilot Studio > Manage Agents. The agent only appeared there after it had billed usage (631 and 398 credits by then). At about 4 credits per turn, a daily CI eval of 13 turns is roughly 50 credits, so budget the cap |
+| Purview audit | Not evaluated. The Audit page reported it could not confirm that activity is being recorded and offered to start recording, a tenant-wide compliance setting that was left alone |
 | `eval.yml` | manual | Runs `scripts/run_evals.py` and uploads the results; see the constraint below |
 
 One-time setup, all scriptable except the last two:
@@ -417,7 +432,7 @@ Set in `.env` (see `.env.example`).
 | RAG | Azure AI Search | SharePoint knowledge (Microsoft Search) | Bedrock Knowledge Bases | Vertex AI Search |
 | Vector store | AI Search (built in) | Managed by the platform | OpenSearch Serverless | Vertex AI Search (built in) |
 | CI auth | Azure OIDC | Entra federated credential (GitHub OIDC; deploy verified) | GitHub OIDC | Workload Identity Federation |
-| Eval judge | GPT-5 + HHEM | Deterministic metrics in `scripts/run_evals.py`; built-in graders not run | Amazon Nova Pro | Gemini 3.5 Flash |
+| Eval judge | GPT-5 + HHEM | Deterministic metrics in `scripts/run_evals.py`; built-in General quality configured, awaiting an account sign-in | Amazon Nova Pro | Gemini 3.5 Flash |
 | Memory | Foundry Memory Store | Copilot Studio Memory (`enableMemory`), per user; verified | Bedrock session-summary memory | ADK session/user state |
 | Protected mode | `KB_ACCESS_MODE=purview` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` |
 | Protection mechanism | Purview labels via Foundry IQ | SharePoint permissions + encrypted Purview labels | Knowledge Base document ACLs | Agent Search document ACLs |

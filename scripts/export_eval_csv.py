@@ -8,9 +8,12 @@ exactly two headers, `Question` and `Expected response`, at most 100 rows, and e
 most 1,000 characters. The test method (General quality, Keyword match, ...) is chosen in the UI
 after import; the file has no method column.
 
-Multi-turn cases (the memory-recall case) are skipped: this format is single-response only. The
-documentation gives no separator for multiple keywords, so the expected keywords are written as a
-comma-separated list; verify how the Keyword match method reads that after your first import.
+Multi-turn cases (the memory-recall case) are skipped: this format is single-response only.
+
+Verified on a harness agent: the 12 questions import, but Keyword match does NOT read the expected
+response as keywords. It takes keywords typed per row in the UI, so use General quality (LLM-judged)
+and let scripts/run_evals.py score keyword recall. A run asks for an authenticated account, an OAuth
+sign-in done by a person in the portal.
 """
 
 import argparse

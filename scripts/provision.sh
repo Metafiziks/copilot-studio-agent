@@ -165,7 +165,7 @@ else
     note "[dry-run] (cd $WS && pac copilot push) && pac copilot publish --bot $AGENT_ID"
   else
     (cd "$WS" && pac copilot push)
-    pac copilot publish --bot "$AGENT_ID"
+    publish_agent "$AGENT_ID"
     published="$(pac copilot list 2>/dev/null | grep -F "$AGENT_NAME" | tr -s ' ' | cut -c1-120)"
     note "agent: $published"
   fi

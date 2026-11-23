@@ -97,3 +97,20 @@ env_url() {
 agent_id() {
   pac copilot list 2>/dev/null | grep -F "$AGENT_NAME" | grep -oE '[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}' | head -1 || true
 }
+
+# publish_agent <bot id>
+# pac copilot publish, plus one workaround. pac 2.16.1 can fail with "Invalid response format" while it
+# polls the publish status (seen for a harness agent published by an app identity) even though the publish
+# ran. On that specific error only, read the bot record: succeed if it shows a publish that succeeded since
+# this call began, otherwise fail. Any other error fails immediately.
+publish_agent() {
+  local id="$1" started out rc=0 fetched
+  started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  out="$(pac copilot publish --bot "$id" 2>&1)" || rc=$?
+  printf '%s\n' "$out" >&2
+  [ "$rc" -eq 0 ] && return 0
+  printf '%s' "$out" | grep -q 'Invalid response format' || return "$rc"
+  warn "pac could not read the publish status; checking the bot record instead"
+  fetched="$(pac org fetch --xml "<fetch><entity name='bot'><attribute name='synchronizationstatus'/><filter><condition attribute='botid' operator='eq' value='$id'/></filter></entity></fetch>" 2>&1)" || return "$rc"
+  printf '%s' "$fetched" | python3 "$ROOT/scripts/publish_check.py" --since "$started" || return "$rc"
+}

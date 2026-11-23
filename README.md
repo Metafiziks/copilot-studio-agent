@@ -6,10 +6,11 @@ what the **signed-in user** is allowed to see. It is the Copilot Studio counterp
 [azd-foundry-search-agent](https://github.com/Metafiziks/azd-foundry-search-agent): same sample
 corpus, same eval cases, same protected-mode idea, different platform.
 
-> **Status.** Provisioning (verified end to end on a fresh environment), the sample corpus,
-> two-level access restriction and the tests are done and were exercised against a real tenant. The
-> evaluation runner is built and unit-tested, with its first live results pending. Memory,
-> observability and CI/CD are **planned, not built**; each section below says exactly where it stands.
+> **Status.** Provisioning (verified end to end on a fresh environment), the sample corpus, two-level access
+> restriction, GitHub Actions CI and deploy (OIDC, no secret), and Application Insights telemetry are done and
+> were exercised against a real tenant. The evaluation runner is built and unit-tested; its first scored run is
+> waiting on SharePoint to index a new site. **Memory is not available for this agent type**, and anomaly
+> detection over the telemetry is not built. Each section below says exactly where it stands.
 
 ## Architecture
 

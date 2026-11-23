@@ -110,3 +110,11 @@ def test_protected_mode_adds_the_restricted_site_as_a_second_source(tmp_path):
 def test_the_sharing_and_license_reminders_are_printed(tmp_path):
     result = run_provision(tmp_path, "--dry-run", "--skip-sharepoint")
     assert "Can use" in result.stderr and "SharePoint-bearing license" in result.stderr
+
+
+def test_with_corpus_is_accepted_and_documented(tmp_path):
+    result = run_provision(tmp_path, "--dry-run", "--skip-sharepoint", "--with-corpus")
+    assert result.returncode == 0, result.stderr
+    help_text = subprocess.run(["bash", str(ROOT / "scripts" / "provision.sh"), "--help"],
+                               capture_output=True, text=True).stdout
+    assert "--with-corpus" in help_text

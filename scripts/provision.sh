@@ -2,13 +2,16 @@
 # provision.sh - stand up the whole stack: environment, SharePoint sites, agent, knowledge.
 # The Copilot Studio counterpart of `azd up`.
 #
-# Usage: bash scripts/provision.sh [--dry-run] [--skip-sharepoint] [--skip-agent] [--no-create]
+# Usage: bash scripts/provision.sh [--dry-run] [--skip-sharepoint] [--skip-agent] [--no-create] [--with-corpus]
 #
 #   --dry-run          Print every mutating step instead of running it (read-only checks still run).
 #   --skip-sharepoint  Leave sites and documents alone.
 #   --skip-agent       Leave the environment's agent alone.
 #   --no-create        Never create the agent: fail if it is not found. Use for deploys, where "not found"
 #                      can mean "not visible to this identity" and creating would be wrong.
+#   --with-corpus      Protected mode only: also upload the (non-sensitive) sample corpus, flat, to the main
+#                      site, so the eval cases have documents to ask about. Without it protected mode holds
+#                      only the two-user acceptance fixtures.
 #
 # Configuration comes from .env (see .env.example). Idempotent: existing environments, groups and
 # agents are reused. Stages:
@@ -25,13 +28,15 @@ set -euo pipefail
 SKIP_SHAREPOINT=false
 SKIP_AGENT=false
 NO_CREATE=false
+WITH_CORPUS=false
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
     --skip-sharepoint) SKIP_SHAREPOINT=true ;;
     --skip-agent) SKIP_AGENT=true ;;
     --no-create) NO_CREATE=true ;;
-    -h|--help) sed -n '2,17p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    --with-corpus) WITH_CORPUS=true ;;
+    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "unknown option: $arg" ;;
   esac
 done
@@ -106,6 +111,10 @@ else
     mkdir -p "$ROOT/.build/upload-kb" "$ROOT/.build/upload-restricted"
     cp "$ROOT/.build/fixtures/control.docx" "$ROOT/.build/fixtures/restricted.docx" "$ROOT/.build/upload-kb/"
     cp "$ROOT/.build/fixtures/site-restricted.docx" "$ROOT/.build/upload-restricted/"
+    if [ "$WITH_CORPUS" = true ]; then
+      python3 "$ROOT/scripts/build_corpus.py" --flat --out "$ROOT/.build/upload-kb" >/dev/null
+      note "added the sample corpus (flat) to the main site for the eval cases"
+    fi
     run sp ensure-site --nick "$KB_SITE_NICK" --title "$KB_SITE_TITLE" --member "$ALLOWED_USER" --member "$DENIED_USER"
     run sp upload --nick "$KB_SITE_NICK" --dir "$ROOT/.build/upload-kb"
     run sp ensure-site --nick "$RESTRICTED_SITE_NICK" --title "$RESTRICTED_SITE_TITLE" --member "$ALLOWED_USER"

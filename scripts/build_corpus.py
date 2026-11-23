@@ -20,10 +20,16 @@ def txt_to_paragraphs(text: str) -> list[str]:
     return [line.rstrip() for line in text.splitlines() if line.strip()]
 
 
-def build(docs_dir: Path, out_dir: Path) -> list[Path]:
-    written = []
+def build(docs_dir: Path, out_dir: Path, flat: bool = False) -> list[Path]:
+    """Convert docs/**/*.txt to .docx. With flat=True every file lands directly in out_dir (no sub-folders);
+    two sources with the same file name then raise, because one would silently overwrite the other."""
+    written, seen = [], set()
     for src in sorted(docs_dir.rglob("*.txt")):
-        dest = out_dir / src.relative_to(docs_dir).with_suffix(".docx")
+        rel = Path(src.name) if flat else src.relative_to(docs_dir)
+        dest = out_dir / rel.with_suffix(".docx")
+        if dest in seen:
+            raise ValueError(f"two documents would both be written to {dest.name}; rename one")
+        seen.add(dest)
         write_docx(dest, txt_to_paragraphs(src.read_text(encoding="utf-8")))
         written.append(dest)
     return written
@@ -34,8 +40,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--docs", type=Path, default=root / "docs")
     parser.add_argument("--out", type=Path, default=root / ".build" / "corpus")
+    parser.add_argument("--flat", action="store_true", help="write every document directly in --out, no sub-folders")
     args = parser.parse_args()
-    files = build(args.docs, args.out)
+    try:
+        files = build(args.docs, args.out, flat=args.flat)
+    except ValueError as exc:
+        sys.exit(str(exc))
     if not files:
         sys.exit(f"No .txt files found under {args.docs}")
     for f in files:

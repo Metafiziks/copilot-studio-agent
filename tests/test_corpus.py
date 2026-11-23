@@ -68,3 +68,20 @@ def test_fixtures_carry_their_codes(tmp_path, monkeypatch):
     assert "HELIOS-31" in docx_text(tmp_path / "restricted.docx")
     assert "MAPLE-82" in docx_text(tmp_path / "control.docx")
     assert "KESTREL-19" in docx_text(tmp_path / "site-restricted.docx")
+
+
+def test_flat_build_puts_every_document_in_the_output_root(tmp_path):
+    written = build_corpus.build(ROOT / "docs", tmp_path, flat=True)
+    assert written and all(p.parent == tmp_path for p in written)
+    assert not [d for d in tmp_path.iterdir() if d.is_dir()]
+
+
+def test_flat_build_refuses_duplicate_file_names(tmp_path):
+    import pytest
+    docs = tmp_path / "docs"
+    (docs / "a").mkdir(parents=True)
+    (docs / "b").mkdir()
+    (docs / "a" / "same.txt").write_text("one")
+    (docs / "b" / "same.txt").write_text("two")
+    with pytest.raises(ValueError, match="same.docx"):
+        build_corpus.build(docs, tmp_path / "out", flat=True)

@@ -7,13 +7,14 @@ across conversations**. It is the Copilot Studio counterpart of
 [azd-foundry-search-agent](https://github.com/Metafiziks/azd-foundry-search-agent): same sample
 corpus, same eval cases, same protected-mode idea, different platform.
 
-> **Status.** Rebuilt as a **memory-enabled harness agent** (Claude Sonnet 4.6) and exercised against a real tenant.
-> Done and verified: one-script provision (create or update, idempotent), per-user memory, per-user
-> restriction at site and document level (two users, side by side), CI and OIDC deploy. **Not done:** a
-> passing scored RAG eval (the first run failed because the test site was not in SharePoint's search index
-> yet; see Evaluations), telemetry (no per-agent setting; an environment-level preview is documented but untested), and anomaly detection. **Every user,
-> including every eval user, needs a SharePoint-bearing license**, or the agent finds nothing. Each section
-> says exactly where it stands.
+> **Status.** Built as a **memory-enabled harness agent** (Claude Sonnet 4.6) and exercised against a real
+> tenant. Done and verified: one-script provision (create or update, idempotent), per-user memory,
+> per-user restriction at site and document level (two users, side by side), CI and OIDC deploy, and a
+> **passing scored eval** (keyword recall 0.99, citation recall 1.00, p95 25.7 s, memory recall 1.00, run
+> as a licensed user). **Not done:** the built-in LLM-judged graders and HHEM, anomaly detection, and
+> per-agent telemetry (an environment-level preview export is set up on one test environment, with nothing
+> received yet). **Two things will silently break it:** a user without a SharePoint-bearing license, and a
+> brand-new SharePoint site (see Troubleshooting). Each section says exactly where it stands.
 
 ## Architecture
 
@@ -98,8 +99,8 @@ sensitivity label.
 
 ## Evaluations
 
-**Status: runner built and unit-tested; memory case passes; the RAG cases have not yet been scored
-against an indexed site.**
+**Status: passing.** 13 cases (12 document questions, 1 two-turn memory case), scored on real replies from a
+licensed test user against the dev agent.
 
 `tests/eval_cases.json` holds the same 13 cases as the Azure template (12 RAG cases with expected
 keywords and sources, one two-turn memory case), with source names mapped to `.docx`.
@@ -111,6 +112,7 @@ from a script that calls the agent as a signed-in user through Microsoft's Agent
 bash scripts/setup_entra_app.sh          # app registration, no secret; prints EVAL_CLIENT_ID / EVAL_TENANT_ID
 python3 -m venv .venv-eval && .venv-eval/bin/pip install microsoft-agents-copilotstudio-client msal
 # put EVAL_CLIENT_ID, EVAL_TENANT_ID, AGENT_ENVIRONMENT_ID, AGENT_SCHEMA_NAME in .env
+bash scripts/provision.sh --with-corpus   # protected mode only: also puts the sample corpus (flat) in the main site
 export AGENT_TOKEN_CACHE=.build/token_cache_eval.json     # one sign-in per test user
 .venv-eval/bin/python scripts/run_evals.py          # device-code sign-in on first use; exits 1 on a failed gate
 ```
@@ -121,22 +123,28 @@ be a **real user with a SharePoint-bearing license**, who is a member of the kno
 agent shared with them (**Can use**): the agent retrieves SharePoint as the signed-in user, an app-only
 caller has none, and for an unlicensed user every question comes back "not found".
 
-**First scored run** (Jane, licensed, against the e2e agent, 12 RAG cases and the memory case):
+**Result** (Jane, licensed; dev agent; sample corpus in the main site):
 
 | Metric | Result | Gate |
 |---|---|---|
+| Keyword recall | **0.986** (11 of 12 cases 1.00; one 0.83) | ≥ 0.65, passes |
+| Citation recall | **1.000** (the right file named in every reply) | ≥ 0.60, passes |
+| p95 latency | **25.7 s** | ≤ 45 s, passes |
 | Memory recall | **1.00** | = 1.0, passes |
-| p95 latency | 28.0 s | ≤ 45 s, passes |
 | Failed calls | 0 | 0, passes |
-| Keyword recall | 0.06 | ≥ 0.65, **fails** |
-| Citation recall | 0.00 | ≥ 0.60, **fails** |
 
-The RAG failure is not the agent being wrong: it said its search tool was returning errors. SharePoint's
-own search for "conveyor" on that site returned nothing either, hours after the documents were uploaded,
-so the site was not in the search index. The documents are in the library. Re-uploading them and creating a
-second site with the same corpus were tried to get it indexed; see the last row of the verification table
-for the outcome. The same agent, as the same user, retrieved correctly from a different (indexed) site, with
-correct citations in the reply payload, which is what the citation check reads.
+**How it got here (so you do not repeat it).** The first run, against the e2e site, scored 0.06 and 0.0.
+The cause was not the agent being wrong. Two checks had been misleading:
+
+- A browser search run as the unlicensed site owner returned nothing, which looked like "the site is not
+  indexed". Run as a licensed user, SharePoint search found the documents in both corpus sites within
+  hours. Always check as a licensed user.
+- The agent itself still failed on the two brand-new corpus sites for hours (errors, then "no results"),
+  for Jane and for John, while the same agent answered correctly from the two-day-old dev site. A new file
+  added to an established site was retrievable **about 10 minutes** after upload. So the agent's search
+  appears to take a long time to start covering a **brand-new site** (not confirmed, not a Microsoft
+  statement), while new files on a covered site are quick. The corpus therefore runs in the established dev
+  site, uploaded flat (`--with-corpus`); sub-folders were not re-tested after the site became usable.
 
 **LLM-judged metrics** (relevance, groundedness) come from Copilot Studio's built-in
 [Agent Evaluation](https://learn.microsoft.com/microsoft-copilot-studio/analytics-agent-evaluation-create).
@@ -155,9 +163,9 @@ maps:
 |---|---|---|
 | Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Not run |
 | Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Not run |
-| Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | Runner built; scored run pending an indexed site |
-| Citation recall | `scripts/run_evals.py` | Runner built; citations do appear as filenames in the reply payload (checked on live replies) |
-| p95 latency | `scripts/run_evals.py` | Measured: 28.0 s |
+| Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.986** |
+| Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
+| p95 latency | `scripts/run_evals.py` | **25.7 s** |
 | HHEM hallucination score | Not available | Needs a custom runner; not built |
 | Memory recall | `scripts/run_evals.py` | **1.00** |
 
@@ -341,18 +349,18 @@ Set in `.env` (see `.env.example`).
 
 | What | Result |
 |---|---|
-| Unit tests | 85 pass (`pytest`): corpus and `.docx` conversion, agent-definition rendering, SharePoint/Graph client with a stubbed transport, shell helpers, provisioning stage with stub tools, eval cases and CSV export, eval and memory metrics and gating |
+| Unit tests | 96 pass (`pytest`): corpus and `.docx` conversion, agent-definition rendering, SharePoint/Graph client with a stubbed transport, shell helpers, provisioning stage with stub tools, eval cases and CSV export, eval and memory metrics and gating |
 | `provision.sh` on the harness agent | Real runs against two environments: the dev agent (clone, apply definition, push, publish) and the e2e agent; a second run pushed nothing, and the portal showed the instructions, the knowledge source and Memory exactly as in `agent/`. The create path (`pac copilot init`, about 3 minutes) was run by hand to make the first dev agent; the script's create branch is covered by dry-run tests only |
 | Memory | Recalled in a new conversation after about 30 s; eval memory case 1.00 as a licensed user (see Memory) |
 | Access restriction | Two users side by side on the harness agent, at site and document level; see [guides/purview.md](guides/purview.md) |
 | Licensing | Same agent, same question: answered for a SharePoint-licensed user, "not found" for an unlicensed site owner, until that owner was licensed. Root cause of days of failed probes |
-| Eval runner | Scored run completed as a licensed user (table under Evaluations); RAG metrics fail on an unindexed site, memory and latency pass |
+| Eval runner | Scored run as a licensed user: keyword 0.986, citation 1.000, p95 25.7 s, memory 1.00; all gates pass (see Evaluations) |
 | `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
 | GitHub Actions | `ci.yml` green. `deploy.yml` ran on the harness agent as the app identity: OIDC sign-in, clone, apply, "No local changes detected" (idempotent), publish. `pac` 2.16.1 failed twice while parsing the publish status ("Invalid response format") although the bot record showed the publish had succeeded, then passed on a third run; a verification step handles that error (unit-tested with fake commands, not yet hit live). The step that prints `pac`'s own log on failure found it |
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | No per-agent telemetry; environment-level preview documented, not tried (see Observability) |
-| `eval.yml` | Secret and variables set (licensed test user, e2e agent); not run yet, waiting on an indexed corpus site |
-| RAG eval pass | Pending: waiting on SharePoint to index a corpus site |
+| `eval.yml` | Secret and variables set (licensed test user); first CI run pending |
+| New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 
 ## Troubleshooting
 
@@ -362,7 +370,7 @@ Set in `.env` (see `.env.example`).
 | `pac auth` fails with "refresh token has expired" | Idle 90 days. Delete the profile and run `pac auth create --deviceCode` again |
 | `pac admin create` rejects `unitedstates` | Pass `--macro-region north-america` (or `europe-uk`, `asia-pacific`); the CLI default is invalid. The scripts do |
 | **"I couldn't find that" for every question, and the test pane's trace shows `sharepoint_lexical_search` / `sharepoint_semantic_search` failing with "Knowledge search · unknown"** | **The signed-in user has no SharePoint-bearing license** (for example Business Premium). The search tools run as that user and fail; the agent then reports "not found", which hides the failure. An unlicensed **site owner** can still open files and fetch them by name, so it looks like a missing document. Assign a license, wait a while for it to reach search, and test as a licensed user. Microsoft publishes nothing on this for harness agents; it was established by testing the same agent as a licensed and an unlicensed user |
-| Empty answers for a licensed user on a new site | Indexing. Check **Search this site** in SharePoint (a search for a word you know is in a file). If it finds nothing, the agent cannot either. Allow 20 to 30 minutes for a new site; one site here was still unindexed after five hours, see Evaluations |
+| Search errors or "no results" for a licensed user on a **brand-new site**, while SharePoint's own search (run as a licensed user, not the owner) shows the documents | The agent's search was slow to cover a new site: two sites stayed unusable for hours for two users, while a new file added to a two-day-old site was usable in about 10 minutes. Use an established site, or wait; the cause is not confirmed. Do not conclude "not indexed" from a search run as an unlicensed user |
 | The Agents SDK returns `404 Error discovering conversation endpoints` | The agent is not shared with the signed-in user: Copilot Studio → Share → **Can use**. It is not a denial from the platform |
 | `pac copilot publish` fails "A required argument --bot is missing" | Pass the agent: `pac copilot publish --bot <schema or id>`. The script does |
 | `pac` fails "You must install .NET" after a Homebrew upgrade | `pac` 2.16 targets .NET 10; with only .NET 11 installed set `DOTNET_ROLL_FORWARD=Major` and `DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec` |

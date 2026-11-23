@@ -33,7 +33,7 @@ done
 
 load_env
 : "${SP_HOST:?SP_HOST is required, e.g. contoso.sharepoint.com (see .env.example)}"
-if [ "$KB_ACCESS_MODE" = protected ]; then
+if [ "$KB_ACCESS_MODE" = protected ] && [ "$SKIP_SHAREPOINT" = false ]; then
   : "${ALLOWED_USER:?ALLOWED_USER is required in protected mode}"
   : "${DENIED_USER:?DENIED_USER is required in protected mode}"
 fi
@@ -42,17 +42,22 @@ fi
 # ---------------------------------------------------------------------------------------------
 log "1/5 preflight"
 require_cmd pac "Install: dotnet tool install --global Microsoft.PowerApps.CLI.Tool (see guides/setup.md)"
-require_cmd az "Install the Azure CLI, then run 'az login' for the target tenant."
 require_cmd python3 "Python 3.10+ is required."
 require_cmd rsync "rsync is required to stage the agent template."
 pac auth list 2>&1 | grep -q '\*' || die "No active pac profile. Run: pac auth create --deviceCode --tenant <tenant-id>"
-az account show >/dev/null 2>&1 || die "Not signed in to az. Run: az login --tenant <tenant-id> --allow-no-subscriptions"
+# Graph (via az) is only needed to create sites and upload documents, so a CI deploy can skip it.
+if [ "$SKIP_SHAREPOINT" = false ]; then
+  require_cmd az "Install the Azure CLI, then run 'az login' for the target tenant."
+  az account show >/dev/null 2>&1 || die "Not signed in to az. Run: az login --tenant <tenant-id> --allow-no-subscriptions"
+fi
 note "pac: $(pac auth list 2>&1 | grep '\*' | head -1 | tr -s ' ' | cut -c1-80)"
 note "mode: $KB_ACCESS_MODE"
 
 # ---------------------------------------------------------------------------------------------
 log "2/5 environment '$ENV_NAME'"
-ENV_URL="$(env_url)"
+# ENV_URL may be supplied (CI does): an app user cannot list environments tenant-wide.
+ENV_URL="${ENV_URL:-}"
+[ -n "$ENV_URL" ] || ENV_URL="$(env_url)"
 if [ -n "$ENV_URL" ]; then
   note "found: $ENV_URL"
 else

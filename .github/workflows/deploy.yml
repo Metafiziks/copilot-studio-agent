@@ -1,0 +1,63 @@
+name: Deploy agent
+
+# Pushes agent/ to the Copilot Studio environment and publishes it. Authenticates to Power Platform
+# with GitHub OIDC (a federated credential on the app registration): there is no client secret.
+#
+# One-time setup (see README > CI/CD):
+#   * GitHub environment `dev`, with the variables listed under `env:` below
+#   * the app registration's federated credential, subject repo:<owner>/<repo>:environment:dev
+#     (bash scripts/setup_entra_app.sh --github-repo <owner>/<repo> --github-environment dev)
+#   * the app registered as an application user in the Dataverse environment with the Bot Author role
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agent/**"
+      - "scripts/provision.sh"
+      - "scripts/_common.sh"
+      - "scripts/render_knowledge.py"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # request the OIDC token
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to dev
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      PAC_VERSION: "2.16.1"
+      TENANT_ID: ${{ vars.EVAL_TENANT_ID }}
+      CLIENT_ID: ${{ vars.EVAL_CLIENT_ID }}
+      ENV_URL: ${{ vars.DATAVERSE_ENV_URL }}
+      SP_HOST: ${{ vars.SP_HOST }}
+      KB_ACCESS_MODE: ${{ vars.KB_ACCESS_MODE }}
+      KB_SITE_NICK: ${{ vars.KB_SITE_NICK }}
+      RESTRICTED_SITE_NICK: ${{ vars.RESTRICTED_SITE_NICK }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"   # the pac build targets net10.0
+
+      - name: Install the Power Platform CLI
+        run: |
+          dotnet tool install --global Microsoft.PowerApps.CLI.Tool --version "$PAC_VERSION"
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Sign in with GitHub OIDC
+        run: |
+          pac auth create --githubFederated --tenant "$TENANT_ID" \
+            --applicationId "$CLIENT_ID" --environment "$ENV_URL"
+
+      - name: Deploy the agent
+        # Sites and documents are provisioned separately (scripts/provision.sh without this flag).
+        run: bash scripts/provision.sh --skip-sharepoint

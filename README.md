@@ -143,11 +143,25 @@ version would use the signals that are exposed (latency, reference counts, token
 
 ## CI/CD
 
-**Status: identity prepared, workflows not built.** `pac auth create --githubFederated` supports
-GitHub OIDC without a client secret. `bash scripts/setup_entra_app.sh --github-repo owner/repo
---github-environment dev` adds the matching federated credential to the app registration once the
-repository exists; the app also needs an **application user** in the target environment. No workflows
-are committed, and a production environment was deferred.
+**Status: three workflows written and linted (`actionlint` clean); first runs pending.**
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `ci.yml` | push to `main`, pull requests | Unit tests and shell syntax checks. No tenant access, no secrets |
+| `deploy.yml` | push to `main` touching `agent/`, or manual | Signs in to Power Platform with **GitHub OIDC** (`pac auth create --githubFederated`) and runs `provision.sh --skip-sharepoint` to push and publish the agent |
+| `eval.yml` | manual | Runs `scripts/run_evals.py` and uploads the results; see the constraint below |
+
+One-time setup, all scriptable except the last two:
+
+```bash
+bash scripts/setup_entra_app.sh --github-repo owner/repo --github-environment dev   # federated credential
+pac admin assign-user --environment <url> --user <app-client-id> --application-user --role "Bot Author"
+gh api -X PUT repos/owner/repo/environments/dev                                      # the environment name is part of the credential's subject
+gh variable set DATAVERSE_ENV_URL --env dev --body <url>                             # plus EVAL_CLIENT_ID, EVAL_TENANT_ID, SP_HOST, KB_ACCESS_MODE, KB_SITE_NICK, RESTRICTED_SITE_NICK
+```
+
+No secret is stored for deploys. The role is the narrow `Bot Author`; whether it is enough to push and
+publish is what the first deploy run shows. A production environment was deferred.
 
 One constraint shapes the design: a federated GitHub identity is an **app**, and the Power Platform API
 offers an application permission (`CopilotStudio.Copilots.Invoke`), but this agent retrieves SharePoint

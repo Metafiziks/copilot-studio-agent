@@ -63,6 +63,12 @@ def acquire_token(client_id: str, tenant_id: str, mode: str = "device") -> str:
     if accounts:
         result = app.acquire_token_silent([SCOPE], account=accounts[0])
     if not result:
+        if os.environ.get("CI") == "true":
+            # Never wait for a human in CI: fail fast with the fix.
+            raise SystemExit(
+                "No usable cached sign-in in CI. Sign in locally with run_evals.py, then refresh the "
+                "EVAL_TOKEN_CACHE secret from .build/token_cache.json (it holds a refresh token; see README)."
+            )
         if mode == "device":
             flow = app.initiate_device_flow(scopes=[SCOPE])
             if "message" not in flow:

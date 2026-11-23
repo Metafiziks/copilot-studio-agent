@@ -43,6 +43,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Mask tenant details in the log
+        # Variables are not masked by default and this repository's logs are public.
+        run: bash scripts/mask_ci_values.sh EVAL_CLIENT_ID EVAL_TENANT_ID AGENT_ENVIRONMENT_ID
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

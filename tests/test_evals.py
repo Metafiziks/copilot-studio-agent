@@ -80,3 +80,48 @@ def test_select_cases_skips_multi_turn_and_applies_limit():
     cases = [{"id": "a"}, {"id": "m", "memory": True, "turns": [{}]}, {"id": "b"}, {"id": "c"}]
     assert [c["id"] for c in ev.select_cases(cases)] == ["a", "b", "c"]
     assert [c["id"] for c in ev.select_cases(cases, limit=2)] == ["a", "b"]
+
+
+# --- memory cases ---
+
+MEMORY_CASE = {"id": "mem", "category": "memory", "memory": True,
+               "turns": [{"question": "remember: second shift, Line 2"}, {"question": "what shift do I prefer?"}],
+               "expected_keywords": ["second shift", "Line 2"], "expected_sources": []}
+
+
+def test_select_memory_cases_needs_a_memory_flag_and_two_turns():
+    cases = [{"id": "a"}, MEMORY_CASE, {"id": "m1", "memory": True, "turns": [{"question": "x"}]}]
+    assert [c["id"] for c in ev.select_memory_cases(cases)] == ["mem"]
+
+
+def test_memory_case_scores_the_last_reply_only():
+    out = ev.score_memory_case(MEMORY_CASE, [reply("Got it, saved."), reply("Your shift is second shift on Line 2.")])
+    assert out["memory_recall"] == 1.0 and out["error"] is None
+    assert out["question"] == "what shift do I prefer?"
+
+
+def test_memory_case_with_a_forgotten_preference_scores_zero_not_an_error():
+    out = ev.score_memory_case(MEMORY_CASE, [reply("Saved."), reply("I don't know your preferences.")])
+    assert out["memory_recall"] == 0.0 and out["error"] is None
+
+
+def test_memory_case_fails_when_either_turn_errors():
+    out = ev.score_memory_case(MEMORY_CASE, [reply(error="TimeoutError: slow"), reply("second shift, Line 2")])
+    assert out["error"] == "TimeoutError: slow" and out["memory_recall"] == 0.0
+    out = ev.score_memory_case(MEMORY_CASE, [reply("Saved."), reply("  ")])
+    assert out["error"] == "empty answer"
+
+
+def test_summarize_requires_full_memory_recall_when_memory_cases_ran():
+    ok = {"id": "mem", "error": None, "latency_ms": 1, "memory_recall": 1.0}
+    assert ev.summarize([good("a")], memory_results=[ok])["passed"] is True
+    half = dict(ok, memory_recall=0.5)
+    s = ev.summarize([good("a")], memory_results=[half])
+    assert s["checks"]["memory_recall"] is False and s["passed"] is False
+    bad = dict(ok, error="boom", memory_recall=0.0)
+    assert ev.summarize([good("a")], memory_results=[bad])["failed_calls"] == ["mem"]
+
+
+def test_summarize_without_memory_cases_has_no_memory_check():
+    s = ev.summarize([good("a")])
+    assert "memory_recall" not in s["checks"] and s["memory_cases"] == 0

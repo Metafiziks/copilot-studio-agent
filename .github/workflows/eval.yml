@@ -1,11 +1,18 @@
 name: Run evals
 
 # On-demand evaluation of the deployed agent. The agent retrieves SharePoint content AS THE SIGNED-IN
-# USER, so the evals need a real user's sign-in, not an app identity. This job reuses a cached sign-in
-# stored in the EVAL_TOKEN_CACHE secret:
+# USER, so the evals need a real user's sign-in, not an app identity, and that user must hold a
+# SharePoint-bearing license (an unlicensed user's searches fail and every answer is "not found").
+# This job reuses a cached sign-in stored in the EVAL_TOKEN_CACHE secret:
 #
-#   1. Sign in locally:      .venv-eval/bin/python scripts/run_evals.py --limit 1
-#   2. Store the cache:      gh secret set EVAL_TOKEN_CACHE --env dev < .build/token_cache.json
+#   1. Sign in locally as the licensed test user, with a cache of its own:
+#        AGENT_TOKEN_CACHE=.build/token_cache_eval.json .venv-eval/bin/python scripts/run_evals.py --limit 1
+#   2. Store the cache:      gh secret set EVAL_TOKEN_CACHE --env dev < .build/token_cache_eval.json
+#
+# AGENT_ENVIRONMENT_ID / AGENT_SCHEMA_NAME must point at an agent whose knowledge site holds the SAMPLE
+# corpus (KB_ACCESS_MODE=sample), the one tests/eval_cases.json asks about, and the user must be a
+# member of that site and have the agent shared with them (Can use). The run includes the two-turn
+# memory case, which writes a preference into that user's memory.
 #
 # The cache holds a refresh token for that user. It stops working after about 90 days idle, when the
 # password changes, or if conditional access (for example MFA on every sign-in) blocks it; the job then

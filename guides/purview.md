@@ -1,8 +1,9 @@
 # Protect documents with sensitivity labels and site permissions
 
 Set `KB_ACCESS_MODE=protected` to make the agent return only what the **signed-in user** may see.
-Copilot Studio retrieves SharePoint content through Microsoft Search under the user's own Entra
-identity, so two things restrict what an answer can draw on:
+The agent (a harness-type Copilot Studio agent) retrieves SharePoint content through its search and
+file tools under the **signed-in user's own Entra identity**, so two things restrict what an answer can
+draw on:
 
 | Level | Mechanism | What you configure |
 |---|---|---|
@@ -29,7 +30,11 @@ reference" rule; an unlabeled document is returned to anyone who can open it.
 
 - The label **published** to the user who will apply it (a label policy). In the test tenant only the
   allowed user could see the label in Office, so that user must do step 3.
-- Two licensed test users (guests do not work for SharePoint answers under SSO).
+- Two test users, **each holding a SharePoint-bearing license** (guests do not work for SharePoint answers
+  under SSO). The license is not optional: for an unlicensed user the agent's SharePoint search tools fail
+  ("Knowledge search · unknown") and it answers "I couldn't find that", even on a site the user owns. A
+  licensed user and an unlicensed one look identical from the outside except for that, so check licenses
+  first when answers are empty.
 
 ## 2. Provision in protected mode
 
@@ -46,8 +51,9 @@ This creates two private sites and uploads only the synthetic fixtures (never th
 | `restricted.docx` | main knowledge site | allowed + denied user | HELIOS-31 |
 | `site-restricted.docx` | restricted site | allowed user only | KESTREL-19 |
 
-Then share the agent (Copilot Studio → Share): **End user access** for both users. The test pane
-needs **Editor**; grant it temporarily and remove it afterwards.
+Then share the agent (Copilot Studio → Share → **Can use**) with both users. Without it the Agents SDK
+gets `404 Error discovering conversation endpoints` for that user, which looks like a denial and is not
+one. The checks below call the agent through the SDK, so no Editor access is needed.
 
 ## 3. Apply the label inside SharePoint
 
@@ -72,35 +78,43 @@ check, and an empty agent answer before it finds the file proves nothing.
 
 ## 5. Verify
 
-In the Copilot Studio test pane, in a **new session each time**, each user asks questions that match
-only the fixture under test. Wording matters: "site-restricted test code" also matched `restricted.docx`.
+Call the published agent as each user through the Agents SDK. Each user signs in once with a device
+code; `AGENT_TOKEN_CACHE` keeps one sign-in per user, and every call starts a new conversation:
+
+```bash
+export AGENT_ENVIRONMENT_ID=<environment id>  AGENT_SCHEMA_NAME=olk_OLMemoryAgent
+export AGENT_TOKEN_CACHE=.build/token_cache_jane.json        # then .build/token_cache_john.json
+.venv-eval/bin/python scripts/agent_client.py probe "What is the unlabeled control code?"
+```
+
+Wording matters: "site-restricted test code" also matched `restricted.docx`, so use the questions below.
 
 | Question | Allowed user | Denied user |
 |---|---|---|
 | Open the restricted site | opens | "You need access" |
 | Open `restricted.docx` | opens | "protected by a rights management service" |
-| "What is the code in site-restricted.docx?" or "What is the KESTREL code?" | KESTREL-19, cited | no answer |
-| "What does the OL Restricted Test Document say?" | HELIOS-31, cited with a label badge | not retrieved |
+| "What is the KESTREL code?" | KESTREL-19, cites `site-restricted.docx` | not found |
+| "What does the OL Restricted Test Document say?" | HELIOS-31, cites `restricted.docx` | not found |
 | "What is the unlabeled control code?" | MAPLE-82 | MAPLE-82 |
 
-A good run also shows in the trace: the denied user's coverage lists only `control.docx`; the
-allowed user's lists all three fixtures.
+### Results (test tenant, November 2026, harness agent, called through the SDK)
 
-### Results (test tenant, November 2026)
-
-| Test | Allowed user | Denied user |
+| Question | Jane (allowed) | John (denied) |
 |---|---|---|
-| Open the restricted site | allowed | "You need access" |
-| Open `restricted.docx` | opens | blocked by rights management |
-| Site-level question | KESTREL-19, cited | no answer (also with "What is the KESTREL code?") |
-| Document-level question | HELIOS-31, cited, label badge | `restricted.docx` absent from retrieval |
-| Control question | MAPLE-82 | MAPLE-82 |
+| Control code | `MAPLE-82`, cites `control.docx` | `MAPLE-82`, cites `control.docx` |
+| Restricted document | `HELIOS-31`, cites `restricted.docx` | "I wasn't able to locate" it; only unrelated files returned |
+| KESTREL code | `KESTREL-19`, cites `site-restricted.docx` | not found; the reply cites only `control.docx` and says it has no KESTREL information |
 
-One clean trial per user per level, in the test pane only. This verifies query-time trimming for the
-signed-in user. It was not tested through Teams or Microsoft 365 Copilot.
+One trial per user per question. This verifies query-time trimming for the signed-in user on the
+harness agent, for both the site level (KESTREL) and the document level (HELIOS). It was not tested
+through Teams or Microsoft 365 Copilot. The same checks passed earlier in the test pane on the
+classic, topic-based version of this agent.
 
 ## Things that cost time
 
+- **Empty answers for a user who can open the files.** The agent's SharePoint search needs the signed-in
+  user to hold a SharePoint-bearing license. The first test user here was an unlicensed site owner:
+  files opened fine, but every question was "not found", for days. Jane and John (licensed) worked at once.
 - **The label definition was never the problem.** It encrypted correctly from the start; the file
   was the problem (see step 3). Neither licenses nor the Purview "turn on labels for SharePoint"
   banner distinguished the cause.
@@ -119,10 +133,12 @@ signed-in user. It was not tested through Teams or Microsoft 365 Copilot.
   the outcome shows labeling and enforcement work for newly labeled files.
 - A user in the denied group still receives anything in documents they may open. Unlabeled files
   are not blocked by this mode.
-- **Telemetry can copy what the labels withheld.** If the agent is connected to Application Insights, the
-  platform's own events log the user's question, the agent's reply text and the user's identity by
-  default, so a reply Copilot Studio gave one user is readable by anyone who can query that workspace,
-  regardless of any label. Turn **Log conversation details** off (Settings > Advanced > Application
-  Insights) and **publish**: in testing that removed the question, the reply and the display name from
-  the events, but the user's Entra object ID stayed. Restrict who can read the workspace anyway. See the
-  README's Observability section.
+- **Telemetry can copy what the labels withheld.** On the earlier classic agent, connecting Application
+  Insights logged the user's question, the agent's reply and the user's identity by default, so a reply
+  withheld from one user by a label was readable by anyone who could query the workspace. The harness
+  agent has no Application Insights setting (Settings > Advanced offers only solutions and a channel-name
+  suffix), so that path does not exist today; if a connection appears later, test what it logs before
+  enabling it. See the README's Observability section.
+- **Agent memory is per user.** Memory stores the user's own preferences, so one user's memory is not
+  shown to another. It is Microsoft-managed storage, not governed by sensitivity labels: do not tell the
+  agent to "remember" the contents of protected documents.

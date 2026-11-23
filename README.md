@@ -2,15 +2,18 @@
 
 A **Microsoft Copilot Studio** agent over your own SharePoint documents, defined as code and
 provisioned with one script. Ask a question, get an answer with cited source files, drawn only from
-what the **signed-in user** is allowed to see. It is the Copilot Studio counterpart of
+what the **signed-in user** is allowed to see, from an agent that **remembers each user's preferences
+across conversations**. It is the Copilot Studio counterpart of
 [azd-foundry-search-agent](https://github.com/Metafiziks/azd-foundry-search-agent): same sample
 corpus, same eval cases, same protected-mode idea, different platform.
 
-> **Status.** Provisioning (verified end to end on a fresh environment), the sample corpus, two-level access
-> restriction, GitHub Actions CI and deploy (OIDC, no secret), and Application Insights telemetry are done and
-> were exercised against a real tenant. The evaluation runner is built and unit-tested; its first scored run is
-> waiting on SharePoint to index a new site. **Memory is not available for this agent type**, and anomaly
-> detection over the telemetry is not built. Each section below says exactly where it stands.
+> **Status.** Rebuilt as a **memory-enabled harness agent** (Claude Sonnet 4.6) and exercised against a real tenant.
+> Done and verified: one-script provision (create or update, idempotent), per-user memory, per-user
+> restriction at site and document level (two users, side by side), CI and OIDC deploy. **Not done:** a
+> passing scored RAG eval (the first run failed because the test site was not in SharePoint's search index
+> yet; see Evaluations), telemetry (the harness agent exposes none), and anomaly detection. **Every user,
+> including every eval user, needs a SharePoint-bearing license**, or the agent finds nothing. Each section
+> says exactly where it stands.
 
 ## Architecture
 
@@ -19,24 +22,33 @@ flowchart LR
     subgraph deploy["scripts/provision.sh"]
         direction TB
         D1["environment<br/>Developer env via pac"] --> D2["sharepoint<br/>private sites via Graph · docs uploaded"]
-        D2 --> D3["agent<br/>pack template · clone · push · publish"]
+        D2 --> D3["agent<br/>pac copilot init · apply definition · push · publish"]
     end
 
-    U([User]) -->|"Entra sign-in"| A["Copilot Studio agent<br/>YAML in agent/"]
+    U([User]) -->|"Entra sign-in<br/>(SharePoint-licensed)"| A["Copilot Studio harness agent<br/>Claude Sonnet 4.6 · Memory on<br/>definition in agent/"]
     A -->|"knowledge search<br/>as the signed-in user"| S[("SharePoint<br/>Microsoft Search")]
     S -->|"security trimming<br/>site permissions · label encryption"| A
     D3 -.-> A
     D2 -.-> S
-    A -.->|planned| AI["Application Insights"]
-    E["Evaluation<br/>built-in graders + CSV"] -.->|planned| A
+    A -.->|"not connected"| AI["Application Insights"]
+    E["Evaluation<br/>scripts/run_evals.py<br/>as a licensed user"] --> A
 ```
 
-The agent runs entirely inside Copilot Studio: there is no code to host. Its instructions, settings
-and knowledge sources are YAML under `agent/`, synced with `pac copilot`.
+The agent runs entirely inside Copilot Studio: there is no code to host. It is a **harness-type agent**
+(`authoringModel: CliCopilot`, Claude Sonnet 4.6): the model plans, calls SharePoint search and
+file tools itself, and keeps per-user memory. Its model, instructions and memory setting live in
+[`agent/settings.mcs.yml`](agent/settings.mcs.yml); the SharePoint knowledge sources are rendered from your
+site URLs by [`scripts/render_agent.py`](scripts/render_agent.py); `pac copilot` syncs both.
 
 **SharePoint is the source of truth.** Retrieval runs under the signed-in user's identity, so site
 permissions and encrypted sensitivity labels decide what an answer can draw on. See
-[protected mode](guides/purview.md).
+[protected mode](guides/purview.md). Memory holds preferences only; documents supply the answers.
+
+> **Every user needs a SharePoint-bearing license.** The agent's search tools run as the signed-in
+> user, and for a user without one (for example Microsoft 365 Business Premium) they fail with
+> "Knowledge search · unknown" and the agent says it found nothing. An unlicensed **site owner** can
+> still open files and fetch them by name, which makes the failure look like a missing document. This
+> cost days of misdiagnosis in testing; see [Troubleshooting](#troubleshooting).
 
 ## Quick start
 
@@ -59,10 +71,11 @@ bash scripts/provision.sh
 | Preflight | Checks `pac`, `az`, Python and both sign-ins |
 | Environment | Creates a Developer environment if missing |
 | SharePoint | Creates a private site (a Microsoft 365 group) through Graph, converts `docs/` to `.docx`, uploads it |
-| Agent | Creates the agent from the template if missing, binds `agent/`, renders the SharePoint knowledge sources, pushes and publishes |
-| Next steps | Prints what a script cannot do: sharing the agent and applying labels |
+| Agent | Creates the harness agent if missing (`pac copilot init`, about 3 minutes), applies `agent/settings.mcs.yml` and the SharePoint knowledge sources to a workspace rebuilt from the live agent, pushes and publishes |
+| Next steps | Prints what a script cannot do: sharing the agent, checking licenses and applying labels |
 
-Then share the agent (Copilot Studio → Share) and **wait for SharePoint to index the new site**,
+Then share the agent (Copilot Studio → Share → **Can use**; without it the Agents SDK gets a 404 for that
+user), make sure each user is SharePoint-licensed, and **wait for SharePoint to index a new site**,
 roughly 20 to 30 minutes, before asking questions.
 
 Tear down:
@@ -75,7 +88,7 @@ Groups are deleted **and purged**; otherwise Entra reserves the site name for 30
 
 ## Bring your own documents
 
-Replace `docs/` with your own `.txt` files, adjust the instructions in `agent/agent.mcs.yml`, update
+Replace `docs/` with your own `.txt` files, adjust the instructions in `agent/settings.mcs.yml`, update
 `tests/eval_cases.json`, and re-run `bash scripts/provision.sh`. SharePoint knowledge accepts
 `.docx`, `.pdf`, `.pptx` and `.xlsx` (not `.txt`), so text files are converted on upload and cited as
 `.docx`. Or skip `docs/` and put those formats straight into the SharePoint library. Sample mode lets
@@ -85,23 +98,45 @@ sensitivity label.
 
 ## Evaluations
 
-**Status: runner built and unit-tested; no results from a fully indexed agent yet.**
+**Status: runner built and unit-tested; memory case passes; the RAG cases have not yet been scored
+against an indexed site.**
+
 `tests/eval_cases.json` holds the same 13 cases as the Azure template (12 RAG cases with expected
 keywords and sources, one two-turn memory case), with source names mapped to `.docx`.
 
-**Deterministic metrics** (keyword recall, citation recall, p95 latency, failed calls) run from a
-script that calls the agent as a signed-in user through Microsoft's Agents SDK. One-time setup:
+**Deterministic metrics** (keyword recall, citation recall, p95 latency, memory recall, failed calls) run
+from a script that calls the agent as a signed-in user through Microsoft's Agents SDK. One-time setup:
 
 ```bash
 bash scripts/setup_entra_app.sh          # app registration, no secret; prints EVAL_CLIENT_ID / EVAL_TENANT_ID
 python3 -m venv .venv-eval && .venv-eval/bin/pip install microsoft-agents-copilotstudio-client msal
 # put EVAL_CLIENT_ID, EVAL_TENANT_ID, AGENT_ENVIRONMENT_ID, AGENT_SCHEMA_NAME in .env
+export AGENT_TOKEN_CACHE=.build/token_cache_eval.json     # one sign-in per test user
 .venv-eval/bin/python scripts/run_evals.py          # device-code sign-in on first use; exits 1 on a failed gate
 ```
 
 Thresholds match the Azure template where a counterpart exists: keyword recall ≥ 0.65, citation recall
-≥ 0.60, p95 ≤ 45 s, and any failed call or empty answer fails the run. It must be a **real user**: the
-agent retrieves SharePoint as the signed-in user, and an app-only caller has none.
+≥ 0.60, p95 ≤ 45 s, memory recall = 1.0, and any failed call or empty answer fails the run. The caller must
+be a **real user with a SharePoint-bearing license**, who is a member of the knowledge site and has the
+agent shared with them (**Can use**): the agent retrieves SharePoint as the signed-in user, an app-only
+caller has none, and for an unlicensed user every question comes back "not found".
+
+**First scored run** (Jane, licensed, against the e2e agent, 12 RAG cases and the memory case):
+
+| Metric | Result | Gate |
+|---|---|---|
+| Memory recall | **1.00** | = 1.0, passes |
+| p95 latency | 28.0 s | ≤ 45 s, passes |
+| Failed calls | 0 | 0, passes |
+| Keyword recall | 0.06 | ≥ 0.65, **fails** |
+| Citation recall | 0.00 | ≥ 0.60, **fails** |
+
+The RAG failure is not the agent being wrong: it said its search tool was returning errors. SharePoint's
+own search for "conveyor" on that site returned nothing either, hours after the documents were uploaded,
+so the site was not in the search index. The documents are in the library. Re-uploading them and creating a
+second site with the same corpus were tried to get it indexed; see the last row of the verification table
+for the outcome. The same agent, as the same user, retrieved correctly from a different (indexed) site, with
+correct citations in the reply payload, which is what the citation check reads.
 
 **LLM-judged metrics** (relevance, groundedness) come from Copilot Studio's built-in
 [Agent Evaluation](https://learn.microsoft.com/microsoft-copilot-studio/analytics-agent-evaluation-create).
@@ -112,17 +147,19 @@ python3 scripts/export_eval_csv.py      # writes .build/eval_cases.csv
 ```
 
 Import it under **Evaluation → New evaluation → Import**. The file has two columns (`Question`,
-`Expected response`); the test method is chosen in the UI afterwards. How each Azure metric maps:
+`Expected response`); the test method is chosen in the UI afterwards. The portal's **Evaluate** tab exists
+for harness agents; running the built-in graders against this agent was not tried. How each Azure metric
+maps:
 
 | Azure metric | Copilot Studio | Status |
 |---|---|---|
-| Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Not run yet |
-| Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Not run yet |
-| Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | Runner built; the CSV writes keywords comma-separated and how Keyword match reads that is unverified |
-| Citation recall | `scripts/run_evals.py` | Runner built; how citations appear in replies is being confirmed against a live reply |
-| p95 latency | `scripts/run_evals.py` | Runner built |
+| Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Not run |
+| Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Not run |
+| Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | Runner built; scored run pending an indexed site |
+| Citation recall | `scripts/run_evals.py` | Runner built; citations do appear as filenames in the reply payload (checked on live replies) |
+| p95 latency | `scripts/run_evals.py` | Measured: 28.0 s |
 | HHEM hallucination score | Not available | Needs a custom runner; not built |
-| Memory recall | See Memory | Not built |
+| Memory recall | `scripts/run_evals.py` | **1.00** |
 
 The built-in Evaluation REST API (`api.powerplatform.com/copilotstudio/.../makerevaluation/testsets/{id}/run`)
 needs a **user** access token too, and its documentation does not name the scope or say whether the
@@ -130,95 +167,74 @@ draft or published agent is evaluated, so triggering it from a script is not imp
 
 ## Memory
 
-**Status: not available for this agent type; not built.**
+**Status: built and verified.** Turned on in code (`enableMemory: true` in
+[`agent/settings.mcs.yml`](agent/settings.mcs.yml)) and exercised against a real tenant.
 
-Copilot Studio has a [Memory (preview)](https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/memory-overview)
-feature, but it does not apply to the agent in this repository:
+Copilot Studio's [Memory (preview)](https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/memory-overview)
+works on this agent type: the agent itself decides what to keep (preferences, feedback, ongoing work),
+stored per user and per agent in Microsoft-managed storage, and it consults that memory when a
+conversation starts. Memories are deleted after 28 days of inactivity, cannot be exported, an admin can
+only view a user's memories through a support ticket, and turning the toggle off does not delete them
+immediately. It is usage-billed.
 
-- **What it is.** The agent itself decides what to keep (preferences, feedback, ongoing work), stored per
-  user and per agent in Microsoft-managed storage, and consults it at the start of a conversation.
-  Memories are deleted after 28 days of inactivity, cannot be exported, and an admin can only view a
-  user's memories through a support ticket. Turning the toggle off does not delete them immediately. It
-  is usage-billed.
-- **How it is enabled.** A **Memory** toggle on the **Build** tab, documented for agents on the
-  "GitHub Copilot harness". The pages describe no YAML, API, Dataverse or tenant setting, and say nothing
-  about the Agents SDK channel this repo's evals use.
-- **Why not here.** This is a classic, topic-based agent. Its portal page has no Build tab and no Memory
-  option (checked directly), and nothing named memory exists in its definition or configuration.
-- **The other agent shape.** `pac copilot init --authoring-mode cli-copilot` scaffolds a different kind of
-  agent (`authoringModel: CliCopilot`, a `CLICopilotRecognizer`, a Claude model series, instructions only,
-  with no topics or knowledge-source files). It is probably the memory-capable one, but that is untested,
-  and adopting it would replace the topic and knowledge design used throughout this repo, including the
-  telemetry node and the per-user SharePoint retrieval that was verified here.
+**Verified.**
+
+- Told a preference in one conversation ("my favorite color is teal"), the agent recalled it in a
+  brand-new conversation (different conversation ID) after about 30 seconds.
+- The two-turn eval case passes as a licensed user: second shift and Line 2 were stored in one
+  conversation and returned in another (`memory_recall = 1.00`). Each eval turn is its own conversation,
+  so only memory can supply the answer.
+- **Not guaranteed to be applied.** The agent acknowledged a "two sentences" formatting preference and
+  then answered in one sentence. Memory is the model's judgement, not a rule; documents supply the
+  answers and memory supplies preferences only.
+
+**Why it was not here before.** The first version of this repo was a classic, topic-based agent, which has
+no Memory option. Memory belongs to the harness agent type, so the agent was rebuilt as one
+(`authoringModel: CliCopilot`). That changed how knowledge is searched and how telemetry works; see
+Observability.
 
 | Azure template | Here |
 |---|---|
-| Foundry Memory Store, scoped per user, written in the background | No counterpart for a classic agent |
-| Memory is not the source of truth: documents supply answers, memory only preferences | The same principle would hold under either option below |
-| Two-turn recall eval | The case stays in `tests/eval_cases.json` and `run_evals.py` skips it |
+| Foundry Memory Store, scoped per user, written in the background | Copilot Studio Memory, scoped per user and per agent, written by the agent |
+| Memory is not the source of truth: documents supply answers, memory only preferences | The same, set in the agent's instructions |
+| Two-turn recall eval | `tests/eval_cases.json` case `memory-preference-recall`, run by `scripts/run_evals.py` |
+| Delete a user's memory | Not available to admins; support ticket only |
 
-Options if you want memory, none built: (1) accept the gap; (2) prototype a harness-type agent beside
-this one and test whether it can use SharePoint knowledge under the signed-in user; (3) keep a small
-preference store of your own (for example a Dataverse table keyed by the user's ID, read and written
-from topics), which reproduces the behaviour but is data you then own, secure and delete.
+A memory eval case **writes into the signed-in user's memory**, and that persists, so use a dedicated
+test user.
 
 ## Observability
 
-**Status: built and verified end to end on a test agent; anomaly detection not built.**
+**Status: the previous telemetry design does not apply to this agent type, and nothing replaces it yet.**
 
-```bash
-bash scripts/provision_observability.sh          # resource group, Log Analytics workspace, Application Insights
-```
+On the earlier classic agent, a topic emitted a `KnowledgeSearch` custom event to Application Insights
+(question length, answer length, search latency, answered or not; verified end to end, including a privacy
+test that showed the platform's own events log question text, reply text and user identity unless
+**Log conversation details** is turned off). A harness agent has no topics, and checked in the portal:
 
-It creates a workspace-based Application Insights component and bounds the cost with a **daily ingestion
-cap** (default 1 GB/day) and 30-day retention; both were read back from Azure after creation. The last
-step is **portal-only**: Copilot Studio exposes no API, agent-definition field or Dataverse column for the
-Application Insights connection, so paste the printed connection string under Settings → Advanced →
-Application Insights.
+- **No Application Insights setting.** Settings > Advanced offers only solutions and a channel-name suffix.
+- **No Dataverse transcripts.** Harness conversations did not appear in the `conversationtranscripts` table
+  (queried directly after several conversations).
+- **What is visible.** The test pane shows each tool call (including failures such as the search error
+  described in Troubleshooting) and a per-conversation credit estimate (about 4 Copilot Credits for a
+  question that searches SharePoint); the admin center shows credit usage per agent once billed usage is
+  reported. The portal's **Monitor** tab exists; it was not evaluated.
 
-The `Conversational boosting` topic (`agent/topics/Search.mcs.yml`) emits a `KnowledgeSearch` custom event
-for every knowledge lookup, with `ConversationId`, `HasAnswer`, `AnswerChars`, `QuestionChars` and
-`SearchMs`. It deliberately records **features only**: no question text and no answer text.
-
-**Verified.** After connecting a test agent in the portal, conversations produced 51 events within about
-two minutes, including `KnowledgeSearch` with correct values (for example `QuestionChars=103`,
-`SearchMs=4291`, `HasAnswer=false`, `AnswerChars=0`), so the Power Fx, including the `DateDiff` latency,
-evaluates correctly at runtime. The platform also emits its own events: `BotMessageReceived`,
-`BotMessageSend`, `TopicStart`, `TopicAction`, `TopicEnd` and `GenerativeAnswers`, whose `Result`
-(for example `No Search Results`) is a built-in retrieval outcome.
-
-> **Privacy: by default the platform's own events log content and identities; one toggle removes the
-> content, but not the user's ID.** Tested on a test agent:
->
-> | Setting | Question and reply text | User display name | User's Entra object ID |
-> |---|---|---|---|
-> | Default (**Log conversation details** on) | logged (`GenerativeAnswers.Message`, `BotMessageSend.text`) | logged | logged |
-> | **Log conversation details** off, saved **and the agent republished** | gone (a marker question appeared in 0 rows) | gone | **still logged** (`BotMessageReceived.fromId`, `BotMessageSend.recipientId`) |
->
-> "Log sensitive properties" was already off and is not what controls this. `GenerativeAnswers.Result`
-> (for example `No Search Results`) survives, so retrieval outcomes remain observable without content.
-> For a protected-documents agent, turn **Log conversation details** off before connecting: otherwise an
-> answer Copilot Studio withheld from one user because of a sensitivity label is still copied into a
-> workspace whose access rules the label does not control. Saving the setting is not enough: publish the
-> agent. Also restrict read access to the workspace (today only the subscription owner and one service
-> principal can read it) and treat the remaining user ID as personal data. No toggle in the panel removes it.
-
-```kql
-customEvents
-| where name == "KnowledgeSearch"
-| extend d = parse_json(customDimensions)
-| project timestamp, HasAnswer = tobool(d.HasAnswer), SearchMs = todouble(d.SearchMs), AnswerChars = toint(d.AnswerChars)
-```
+`scripts/provision_observability.sh` (Log Analytics workspace with a daily ingestion cap, workspace-based
+Application Insights) still works and is tested, but there is nothing to connect to it for this agent, so
+it is not part of the provisioning path. Teardown removes it with `--delete-observability`.
 
 | Azure template | Here | Status |
 |---|---|---|
-| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Application Insights `customEvents` over a Log Analytics workspace | Resources built; connection is manual |
-| Per-request retrieval score, reranker score, chunk count | Not exposed by Copilot Studio telemetry (a community answer says semantic ranking scores are unavailable) | Cannot be reproduced |
-| `IsolationForest` over six retrieval features, trained on baseline runs | The same idea over what *is* exposed: search latency, answer and question length, answered or not | Not built |
+| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Nothing exposed by the harness agent | Not possible today |
+| Per-request retrieval score, reranker score, chunk count | Not exposed | Cannot be reproduced |
+| `IsolationForest` over six retrieval features | Needs a telemetry feed that does not exist | Not built |
 | HHEM faithfulness score in evals | Needs answer plus retrieved text; custom runner | Not built |
 | Weekly retrain workflow | | Not built |
 
-Teardown removes it with `bash scripts/teardown.sh --yes --delete-observability`.
+What can be measured today comes from the eval runner (latency, recall) and billing data. In the test tenant
+a pay-as-you-go plan is linked to the environments and an Azure budget alert watches the spend; both were
+set up by hand and are not scripted.
 
 ## CI/CD
 
@@ -261,8 +277,10 @@ One constraint shapes the design: a federated GitHub identity is an **app**, and
 offers an application permission (`CopilotStudio.Copilots.Invoke`), but this agent retrieves SharePoint
 as the **signed-in user**. An app-only call has no user for SharePoint to trim by, so I expect its
 retrieval to come back empty (not tested). Deploying with `pac` can run from CI under the federated
-identity; evals need a user, so they run on demand from a signed-in session unless a dedicated test
-user's refresh token is stored as a secret, which breaks on conditional access and idle expiry.
+identity; evals need a user who holds a SharePoint-bearing license, so they run on demand from a signed-in
+session unless a dedicated test user's refresh token is stored as a secret, which breaks on conditional
+access and idle expiry. `eval.yml` also needs the repository variables `AGENT_ENVIRONMENT_ID` and
+`AGENT_SCHEMA_NAME` pointing at an agent whose site holds the sample corpus, which are not set yet.
 
 ## Configuration
 
@@ -275,11 +293,12 @@ Set in `.env` (see `.env.example`).
 | `ALLOWED_USER` / `DENIED_USER` | Required in protected mode: the two test users |
 | `KB_MEMBERS` | Sample mode: extra members of the main site, comma separated |
 | `ENV_NAME` / `ENV_REGION` | Environment name (default `copilot-agent-dev`) and macro-region (default `north-america`) |
-| `AGENT_NAME` / `PUBLISHER_PREFIX` / `SOLUTION_NAME` | Agent display name, publisher prefix, solution name |
+| `AGENT_NAME` / `PUBLISHER_PREFIX` | Agent display name (default `OL Memory Agent`) and publisher prefix (default `olk`). Together they must give the schema name in `agent/settings.mcs.yml` (`olk_OLMemoryAgent`); the script refuses to apply the definition to a different agent |
 | `KB_SITE_NICK` / `KB_SITE_TITLE` | Main site (default `ol-knowledge`) |
 | `RESTRICTED_SITE_NICK` / `RESTRICTED_SITE_TITLE` | Restricted site in protected mode (default `ol-restricted`) |
 | `EVAL_CLIENT_ID` / `EVAL_TENANT_ID` | Evals: the app registration from `scripts/setup_entra_app.sh` and its tenant |
-| `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME` | Evals: the agent to call (Copilot Studio > Settings > Advanced > Metadata) |
+| `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME` | Evals: the agent to call (the environment ID is in the portal URL; the schema name is `olk_OLMemoryAgent`) |
+| `AGENT_TOKEN_CACHE` | Evals: the sign-in cache file (default `.build/token_cache.json`). Use a different file per test user |
 | `OBS_RESOURCE_GROUP` / `OBS_LOCATION` | Monitoring resource group and region (defaults `rg-copilot-agent-obs`, `eastus2`) |
 | `OBS_WORKSPACE` / `OBS_APPINSIGHTS` | Log Analytics workspace and Application Insights names (defaults `log-copilot-agent`, `appi-copilot-agent`) |
 | `OBS_DAILY_CAP_GB` / `OBS_RETENTION_DAYS` | Daily ingestion cap (default 1) and retention (default 30) |
@@ -288,18 +307,18 @@ Set in `.env` (see `.env.example`).
 
 | What | Result |
 |---|---|
-| Unit tests | 60 pass (`pytest`): corpus and `.docx` conversion, knowledge rendering, SharePoint/Graph client with a stubbed transport, shell helpers (retry, config), eval cases and CSV export, eval metrics and gating |
-| `provision.sh`, end to end | Ran on a **fresh environment** with a new site: created the environment, site and 6 documents, created the agent from the template, bound the workspace, pushed the knowledge source and published, in about 2.5 minutes. A re-run reused everything and pushed nothing. Server-side check: the agent and its knowledge source exist and `webBrowsing`, `useModelKnowledge` and Entra `Integrated` auth survived the round trip |
-| Bugs that run found | Graph rejects an empty group `description` (fixed, tested); a just-created environment refuses async imports for a few minutes, so the import now retries on that specific error (tested with fake commands; not hit live because the environment was already ready) |
-| `provision.sh --dry-run`, both modes | Ran against a real tenant, changed no tracked files. **Protected mode was only dry-run**, not provisioned for real |
-| SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, all exercised for real |
+| Unit tests | 85 pass (`pytest`): corpus and `.docx` conversion, agent-definition rendering, SharePoint/Graph client with a stubbed transport, shell helpers, provisioning stage with stub tools, eval cases and CSV export, eval and memory metrics and gating |
+| `provision.sh` on the harness agent | Real runs against two environments: the dev agent (clone, apply definition, push, publish) and the e2e agent; a second run pushed nothing, and the portal showed the instructions, the knowledge source and Memory exactly as in `agent/`. The create path (`pac copilot init`, about 3 minutes) was run by hand to make the first dev agent; the script's create branch is covered by dry-run tests only |
+| Memory | Recalled in a new conversation after about 30 s; eval memory case 1.00 as a licensed user (see Memory) |
+| Access restriction | Two users side by side on the harness agent, at site and document level; see [guides/purview.md](guides/purview.md) |
+| Licensing | Same agent, same question: answered for a SharePoint-licensed user, "not found" for an unlicensed site owner, until that owner was licensed. Root cause of days of failed probes |
+| Eval runner | Scored run completed as a licensed user (table under Evaluations); RAG metrics fail on an unindexed site, memory and latency pass |
 | `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
-| GitHub Actions | `ci.yml` green. `deploy.yml`: OIDC sign-in, push and publish succeeded as the app with `System Customizer`; a follow-up run was a no-op ("No local changes detected"). Two earlier failures were real: the credential's subject lacked GitHub's immutable IDs, and a user-level role could not see the agent (which also exposed a create-path hazard, now guarded by `--no-create`). A diff of the live agent after the first successful deploy showed the only changes were two knowledge-source descriptions, caused by hand-written committed files; they are now generated and test-guarded |
-| Eval runner | First live call succeeded (device-code sign-in, user token, agent reply in 20 s). The agent's answer was the fallback because the new site was not yet indexed; results pending |
-| Access restriction | Demonstrated at site and document level in the test pane; see [guides/purview.md](guides/purview.md) |
-| Observability resources | Created in Azure and read back: workspace cap 1 GB/day, 30-day retention, Application Insights linked to the workspace. The script is tested against a stub `az` (4 tests) |
-| `KnowledgeSearch` telemetry | Observed in Application Insights after connecting a test agent: correct values, about two minutes after the conversation. The same run showed the platform's own events logging question text, reply text and user identity; turning off **Log conversation details** (and republishing) removed the text and display name but not the user's Entra object ID (see the privacy note under Observability) |
-| Memory, `eval.yml` | Not run |
+| GitHub Actions | `ci.yml` green and `deploy.yml` OIDC deploys verified on the earlier agent shape; the workflows were updated for the harness agent and their first runs on it are pending |
+| SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
+| Telemetry | Not available for this agent type (see Observability) |
+| `eval.yml` | Not run; its variables and secret are not set |
+| RAG eval pass | Pending: waiting on SharePoint to index a corpus site |
 
 ## Troubleshooting
 
@@ -308,10 +327,11 @@ Set in `.env` (see `.env.example`).
 | `pac: command not found`, or "You must install .NET" | Add `~/.dotnet/tools` to `PATH` and set `DOTNET_ROOT` (Homebrew: `/opt/homebrew/opt/dotnet/libexec`); the scripts do this when the Homebrew path exists |
 | `pac auth` fails with "refresh token has expired" | Idle 90 days. Delete the profile and run `pac auth create --deviceCode` again |
 | `pac admin create` rejects `unitedstates` | Pass `--macro-region north-america` (or `europe-uk`, `asia-pacific`); the CLI default is invalid. The scripts do |
-| The agent answers "No information found" for content you know exists | Almost always SharePoint indexing. Check **Search this site** in SharePoint; allow 20 to 30 minutes for a new site |
-| A user sees no agent in Copilot Studio | **End user access** lets them chat but does not list the agent. The test pane needs **Editor**, and Environment Maker conflicts with the Agent viewer role |
-| `pac copilot pack` → "Unsupported directory: knowledge/" | Pack cannot carry knowledge sources and the failure is easy to miss: a later `solution import` then imports the older zip. Knowledge goes in with `pac copilot push` |
-| `pac copilot publish` prints an old timestamp | Cosmetic. Check the bot's `publishedon` in Dataverse |
+| **"I couldn't find that" for every question, and the test pane's trace shows `sharepoint_lexical_search` / `sharepoint_semantic_search` failing with "Knowledge search · unknown"** | **The signed-in user has no SharePoint-bearing license** (for example Business Premium). The search tools run as that user and fail; the agent then reports "not found", which hides the failure. An unlicensed **site owner** can still open files and fetch them by name, so it looks like a missing document. Assign a license, wait a while for it to reach search, and test as a licensed user. Microsoft publishes nothing on this for harness agents; it was established by testing the same agent as a licensed and an unlicensed user |
+| Empty answers for a licensed user on a new site | Indexing. Check **Search this site** in SharePoint (a search for a word you know is in a file). If it finds nothing, the agent cannot either. Allow 20 to 30 minutes for a new site; one site here was still unindexed after five hours, see Evaluations |
+| The Agents SDK returns `404 Error discovering conversation endpoints` | The agent is not shared with the signed-in user: Copilot Studio → Share → **Can use**. It is not a denial from the platform |
+| `pac copilot publish` fails "A required argument --bot is missing" | Pass the agent: `pac copilot publish --bot <schema or id>`. The script does |
+| `pac` fails "You must install .NET" after a Homebrew upgrade | `pac` 2.16 targets .NET 10; with only .NET 11 installed set `DOTNET_ROLL_FORWARD=Major` and `DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec` |
 | Re-provisioning fails because the site name exists | A deleted group is soft-deleted for 30 days. Use `teardown.sh`, which purges, or purge it in Entra |
 | Denied user can open or retrieve a labeled file | The file was labeled before SharePoint could process it. Label a never-labeled file inside SharePoint ([guide](guides/purview.md)) |
 | No Sensitivity button in Word for the web | Use the account the label is published to, a normal (not incognito) window, Editing mode; see the guide |
@@ -319,20 +339,19 @@ Set in `.env` (see `.env.example`).
 | Deploy says the agent was not found (`--no-create`) | The deploying app cannot read it, usually a user-level role; see the role note under CI/CD |
 | SharePoint REST or file download returns 401 | Expected with an Azure CLI token. The scripts use Microsoft Graph |
 | `GID: bad math expression` in zsh | `GID` is read-only in zsh; use another variable name |
-| The portal says the model GPT-5 Chat was retired | The stored `modelNameHint` is still `GPT5Chat` and the platform substitutes a newer model at runtime until 12/12/2026; pick a current model in the portal, `pac copilot pull`, and commit it |
 
 ## Comparison across clouds
 
 |  | [Azure](https://github.com/Metafiziks/azd-foundry-search-agent) | **Copilot Studio (this repo)** | [AWS](https://github.com/Metafiziks/aws-bedrock-agent) | [GCP](https://github.com/Metafiziks/gcp-search-agent) |
 |---|---|---|---|---|
 | Provision | `azd up` | `bash scripts/provision.sh` | `bash scripts/provision.sh` | `bash scripts/provision.sh` |
-| LLM | GPT-5 (Foundry) | Managed by Copilot Studio (model hint in `agent.mcs.yml`) | Amazon Nova Lite | Gemini 3.5 Flash |
-| Agent runtime | Foundry hosted agent (Python) | Copilot Studio agent, low-code, YAML via `pac` | Bedrock Agents | Google ADK + Cloud Run |
+| LLM | GPT-5 (Foundry) | Claude Sonnet 4.6, set in `agent/settings.mcs.yml` | Amazon Nova Lite | Gemini 3.5 Flash |
+| Agent runtime | Foundry hosted agent (Python) | Copilot Studio harness agent, defined as YAML via `pac` | Bedrock Agents | Google ADK + Cloud Run |
 | RAG | Azure AI Search | SharePoint knowledge (Microsoft Search) | Bedrock Knowledge Bases | Vertex AI Search |
 | Vector store | AI Search (built in) | Managed by the platform | OpenSearch Serverless | Vertex AI Search (built in) |
 | CI auth | Azure OIDC | Entra federated credential (GitHub OIDC; deploy verified) | GitHub OIDC | Workload Identity Federation |
-| Eval judge | GPT-5 + HHEM | Built-in graders (planned) | Amazon Nova Pro | Gemini 3.5 Flash |
-| Memory | Foundry Memory Store | Not available for classic agents (Copilot Studio Memory targets a different agent type) | Bedrock session-summary memory | ADK session/user state |
+| Eval judge | GPT-5 + HHEM | Deterministic metrics in `scripts/run_evals.py`; built-in graders not run | Amazon Nova Pro | Gemini 3.5 Flash |
+| Memory | Foundry Memory Store | Copilot Studio Memory (`enableMemory`), per user; verified | Bedrock session-summary memory | ADK session/user state |
 | Protected mode | `KB_ACCESS_MODE=purview` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` |
 | Protection mechanism | Purview labels via Foundry IQ | SharePoint permissions + encrypted Purview labels | Knowledge Base document ACLs | Agent Search document ACLs |
 | Who proves the user | The user's delegated token, checked by AI Search | The user's Entra sign-in, checked by the platform | Your backend (API Gateway JWT authorizer) | The user's Google token, checked by Agent Search |

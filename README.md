@@ -136,10 +136,40 @@ Store, but it has not been enabled or tested on this agent. The two-turn recall 
 
 ## Observability
 
-**Status: not built.** Copilot Studio can send telemetry to Application Insights (agent-level custom
-events; environment-level spans in preview). Retrieval and semantic-ranking scores were not found in
-that telemetry, so the Azure template's six-feature IsolationForest cannot be reproduced as is; a
-version would use the signals that are exposed (latency, reference counts, tokens).
+**Status: Azure resources and telemetry emission built; not yet connected to the agent or queried.**
+
+```bash
+bash scripts/provision_observability.sh          # resource group, Log Analytics workspace, Application Insights
+```
+
+It creates a workspace-based Application Insights component and bounds the cost with a **daily ingestion
+cap** (default 1 GB/day) and 30-day retention; both were read back from Azure after creation. The last
+step is **portal-only**: Copilot Studio exposes no API, agent-definition field or Dataverse column for the
+Application Insights connection, so paste the printed connection string under Settings → Advanced →
+Application Insights.
+
+The `Conversational boosting` topic (`agent/topics/Search.mcs.yml`) emits a `KnowledgeSearch` custom event
+for every knowledge lookup, with `ConversationId`, `HasAnswer`, `AnswerChars`, `QuestionChars` and
+`SearchMs`. It deliberately records **features only**: no question text and no answer text. The server
+accepted and published the topic on a test agent; its runtime behaviour is confirmed only once a real
+conversation produces an event.
+
+```kql
+customEvents
+| where name == "KnowledgeSearch"
+| extend d = parse_json(customDimensions)
+| project timestamp, HasAnswer = tobool(d.HasAnswer), SearchMs = todouble(d.SearchMs), AnswerChars = toint(d.AnswerChars)
+```
+
+| Azure template | Here | Status |
+|---|---|---|
+| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Application Insights `customEvents` over a Log Analytics workspace | Resources built; connection is manual |
+| Per-request retrieval score, reranker score, chunk count | Not exposed by Copilot Studio telemetry (a community answer says semantic ranking scores are unavailable) | Cannot be reproduced |
+| `IsolationForest` over six retrieval features, trained on baseline runs | The same idea over what *is* exposed: search latency, answer and question length, answered or not | Not built |
+| HHEM faithfulness score in evals | Needs answer plus retrieved text; custom runner | Not built |
+| Weekly retrain workflow | | Not built |
+
+Teardown removes it with `bash scripts/teardown.sh --yes --delete-observability`.
 
 ## CI/CD
 
@@ -201,6 +231,9 @@ Set in `.env` (see `.env.example`).
 | `RESTRICTED_SITE_NICK` / `RESTRICTED_SITE_TITLE` | Restricted site in protected mode (default `ol-restricted`) |
 | `EVAL_CLIENT_ID` / `EVAL_TENANT_ID` | Evals: the app registration from `scripts/setup_entra_app.sh` and its tenant |
 | `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME` | Evals: the agent to call (Copilot Studio > Settings > Advanced > Metadata) |
+| `OBS_RESOURCE_GROUP` / `OBS_LOCATION` | Monitoring resource group and region (defaults `rg-copilot-agent-obs`, `eastus2`) |
+| `OBS_WORKSPACE` / `OBS_APPINSIGHTS` | Log Analytics workspace and Application Insights names (defaults `log-copilot-agent`, `appi-copilot-agent`) |
+| `OBS_DAILY_CAP_GB` / `OBS_RETENTION_DAYS` | Daily ingestion cap (default 1) and retention (default 30) |
 
 ## Verification so far
 
@@ -215,7 +248,9 @@ Set in `.env` (see `.env.example`).
 | GitHub Actions | `ci.yml` green. `deploy.yml`: OIDC sign-in, push and publish succeeded as the app with `System Customizer`; a follow-up run was a no-op ("No local changes detected"). Two earlier failures were real: the credential's subject lacked GitHub's immutable IDs, and a user-level role could not see the agent (which also exposed a create-path hazard, now guarded by `--no-create`). A diff of the live agent after the first successful deploy showed the only changes were two knowledge-source descriptions, caused by hand-written committed files; they are now generated and test-guarded |
 | Eval runner | First live call succeeded (device-code sign-in, user token, agent reply in 20 s). The agent's answer was the fallback because the new site was not yet indexed; results pending |
 | Access restriction | Demonstrated at site and document level in the test pane; see [guides/purview.md](guides/purview.md) |
-| Memory, telemetry, `eval.yml` | Not run |
+| Observability resources | Created in Azure and read back: workspace cap 1 GB/day, 30-day retention, Application Insights linked to the workspace. The script is tested against a stub `az` (4 tests) |
+| `KnowledgeSearch` telemetry | The topic round-trips through the server and publishes on a test agent. **No event has been observed yet** (the agent is not connected to Application Insights) |
+| Memory, `eval.yml` | Not run |
 
 ## Troubleshooting
 

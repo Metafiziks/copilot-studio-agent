@@ -7,6 +7,7 @@
 #   --dry-run              Print the steps without running them.
 #   --delete-environment   Also delete the Developer environment (and with it the agent).
 #   --keep-sites           Leave the SharePoint sites/groups in place.
+#   --delete-observability Also delete the monitoring resource group (Log Analytics + Application Insights).
 #
 # SharePoint groups are deleted AND purged. Without the purge, Entra keeps the soft-deleted group for
 # 30 days and reserves its mail nickname, which blocks provisioning the same site name again.
@@ -17,13 +18,15 @@ set -euo pipefail
 YES=false
 DELETE_ENV=false
 KEEP_SITES=false
+DELETE_OBS=false
 for arg in "$@"; do
   case "$arg" in
     --yes) YES=true ;;
     --dry-run) DRY_RUN=true ;;
     --delete-environment) DELETE_ENV=true ;;
     --keep-sites) KEEP_SITES=true ;;
-    -h|--help) sed -n '2,14p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    --delete-observability) DELETE_OBS=true ;;
+    -h|--help) sed -n '2,15p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) die "unknown option: $arg" ;;
   esac
 done
@@ -52,6 +55,14 @@ if [ "$DELETE_ENV" = true ]; then
   fi
 else
   note "environment kept (add --delete-environment to remove it)"
+fi
+if [ "$DELETE_OBS" = true ]; then
+  require_cmd az "Install the Azure CLI, then run 'az login'."
+  rg="${OBS_RESOURCE_GROUP:-rg-copilot-agent-obs}"
+  log "deleting the monitoring resource group '$rg' (workspace and Application Insights, with their data)"
+  run az group delete --name "$rg" --yes --no-wait
+else
+  note "monitoring resources kept (add --delete-observability to remove the resource group)"
 fi
 [ "$DRY_RUN" = true ] && log "dry run complete; nothing was changed"
 exit 0

@@ -7,10 +7,22 @@ beginDialog:
   id: main
   priority: -1
   actions:
+    - kind: SetVariable
+      id: search-started
+      variable: init:Topic.SearchStarted
+      value: =Now()
+
     - kind: SearchAndSummarizeContent
       id: search-content
       variable: Topic.Answer
       userInput: =System.Activity.Text
+
+    # Retrieval telemetry for Application Insights (customEvents, name KnowledgeSearch). Deliberately
+    # records features only: no question text and no answer text, which can be sensitive.
+    - kind: LogCustomTelemetryEvent
+      id: log-knowledge-search
+      eventName: KnowledgeSearch
+      properties: "={ConversationId: System.Conversation.Id, HasAnswer: !IsBlank(Topic.Answer), AnswerChars: Len(Topic.Answer), QuestionChars: Len(System.Activity.Text), SearchMs: DateDiff(Topic.SearchStarted, Now(), TimeUnit.Milliseconds)}"
 
     - kind: ConditionGroup
       id: has-answer-conditions

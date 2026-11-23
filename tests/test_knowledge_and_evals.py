@@ -6,69 +6,87 @@ from pathlib import Path
 import pytest
 
 import export_eval_csv
-import render_knowledge
+import render_agent
 
 ROOT = Path(__file__).resolve().parent.parent
 CASES = json.loads((ROOT / "tests" / "eval_cases.json").read_text())
 
+SCHEMA = "olk_OLMemoryAgent"
 
-# --- render_knowledge ---
 
-def test_render_source_contains_kind_and_site():
-    text = render_knowledge.render_source("OL Library", "Main docs", "https://h.sharepoint.com/sites/x/Shared%20Documents")
+# --- render_agent: knowledge sources ---
+
+def test_render_source_is_a_harness_sharepoint_knowledge_source():
+    text = render_agent.render_source("OL Knowledge", "Main docs", "https://h.sharepoint.com/sites/x")
     assert "kind: KnowledgeSourceConfiguration" in text
-    assert "kind: SharePointSearchSource" in text
-    assert "site: https://h.sharepoint.com/sites/x/Shared%20Documents" in text
-    assert "componentName: OL Library" in text
+    assert "kind: SharePointKnowledgeSource" in text
+    assert "siteUrl: https://h.sharepoint.com/sites/x" in text
+    assert "targetKind: Site" in text
+    assert "componentName: OL Knowledge" in text
 
 
 def test_render_source_rejects_non_https():
     with pytest.raises(ValueError):
-        render_knowledge.render_source("n", "d", "http://h/sites/x")
+        render_agent.render_source("n", "d", "http://h/sites/x")
 
 
 def test_yaml_scalar_quotes_unsafe_values():
-    assert render_knowledge.yaml_scalar("Plain name") == "Plain name"
-    assert render_knowledge.yaml_scalar("Name: with colon") == "'Name: with colon'"
-    assert render_knowledge.yaml_scalar("It's #1") == "'It''s #1'"
+    assert render_agent.yaml_scalar("Plain name") == "Plain name"
+    assert render_agent.yaml_scalar("Name: with colon") == "'Name: with colon'"
+    assert render_agent.yaml_scalar("It's #1") == "'It''s #1'"
 
 
-def test_library_url_encodes_the_space():
-    assert render_knowledge.library_url("t.sharepoint.com", "ol-knowledge") == \
-        "https://t.sharepoint.com/sites/ol-knowledge/Shared%20Documents"
+def test_site_url_is_the_site_not_the_library():
+    assert render_agent.site_url("t.sharepoint.com", "ol-knowledge") == "https://t.sharepoint.com/sites/ol-knowledge"
 
 
-def test_write_sources_replaces_stale_files_and_numbers_from_zero(tmp_path):
-    (tmp_path / "SharePointSearchSource.7.mcs.yml").write_text("stale")
-    (tmp_path / "other.mcs.yml").write_text("keep")
-    sources = [("A", "first", "https://h/sites/a/Shared%20Documents"),
-               ("B", "second", "https://h/sites/b/Shared%20Documents")]
-    written = render_knowledge.write_sources(tmp_path, sources)
-    assert [p.name for p in written] == ["SharePointSearchSource.0.mcs.yml", "SharePointSearchSource.1.mcs.yml"]
-    assert not (tmp_path / "SharePointSearchSource.7.mcs.yml").exists()
-    assert (tmp_path / "other.mcs.yml").exists()
+def test_write_sources_replaces_every_stale_knowledge_file(tmp_path):
+    kdir = tmp_path / "capabilities" / "knowledge"
+    kdir.mkdir(parents=True)
+    # The portal names files with a random suffix; those must go too, or the agent keeps old sources.
+    (kdir / f"{SCHEMA}.olknowledge__XKZ0KgYeeqJCLxBbrb96.mcs.yml").write_text("stale")
+    sources = [("OL Knowledge", "first", "https://h/sites/a"), ("OL Restricted", "second", "https://h/sites/b")]
+    written = render_agent.write_sources(tmp_path, SCHEMA, sources)
+    assert sorted(p.name for p in kdir.iterdir()) == [
+        f"{SCHEMA}.knowledge_olknowledge.mcs.yml", f"{SCHEMA}.knowledge_olrestricted.mcs.yml"]
+    assert "siteUrl: https://h/sites/b" in written[1].read_text()
+
+
+def test_same_named_sources_get_distinct_files(tmp_path):
+    written = render_agent.write_sources(tmp_path, SCHEMA, [("Docs", "a", "https://h/sites/a"), ("Docs", "b", "https://h/sites/b")])
+    assert len({p.name for p in written}) == 2
 
 
 def test_parse_source_requires_three_parts():
-    assert render_knowledge.parse_source("a|b|https://x") == ("a", "b", "https://x")
+    assert render_agent.parse_source("a|b|https://x") == ("a", "b", "https://x")
     with pytest.raises(ValueError):
-        render_knowledge.parse_source("a|b")
+        render_agent.parse_source("a|b")
 
 
-def test_committed_knowledge_files_are_exactly_what_the_renderer_produces():
-    """The repo must hold what provision.sh / CI render, or every deploy rewrites the live agent."""
-    files = sorted((ROOT / "agent" / "knowledge").glob("SharePointSearchSource.*.mcs.yml"))
-    assert files
-    for path in files:
-        text = path.read_text()
-        fields = {k: re.search(rf"^\s*{k}: (.+)$", text, re.M).group(1).strip("'") for k in ("componentName", "description", "site")}
-        assert render_knowledge.render_source(fields["componentName"], fields["description"], fields["site"]) == text, path.name
+# --- render_agent: the committed agent definition ---
+
+def test_committed_settings_describe_a_memory_enabled_harness_agent():
+    text = (ROOT / "agent" / "settings.mcs.yml").read_text()
+    assert "authoringModel: CliCopilot" in text and "kind: CLICopilotRecognizer" in text
+    assert "enableMemory: true" in text
+    assert render_agent.schema_name(text) == SCHEMA
 
 
-def test_committed_knowledge_files_match_the_renderer_layout():
-    for path in sorted((ROOT / "agent" / "knowledge").glob("SharePointSearchSource.*.mcs.yml")):
-        text = path.read_text()
-        assert "kind: SharePointSearchSource" in text and "site: https://" in text
+def test_apply_settings_copies_the_definition_when_the_agent_matches(tmp_path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "settings.mcs.yml").write_bytes(b"\xef\xbb\xbfdisplayName: x\nschemaName: " + SCHEMA.encode() + b"\nenableMemory: false\n")
+    render_agent.apply_settings(ws, ROOT / "agent")
+    assert "enableMemory: true" in (ws / "settings.mcs.yml").read_text()
+
+
+def test_apply_settings_refuses_to_overwrite_a_different_agent(tmp_path):
+    ws = tmp_path / "ws"
+    ws.mkdir()
+    (ws / "settings.mcs.yml").write_text("schemaName: olk_SomethingElse\n")
+    with pytest.raises(ValueError, match="olk_SomethingElse"):
+        render_agent.apply_settings(ws, ROOT / "agent")
+    assert "olk_SomethingElse" in (ws / "settings.mcs.yml").read_text()   # untouched
 
 
 # --- eval cases ---

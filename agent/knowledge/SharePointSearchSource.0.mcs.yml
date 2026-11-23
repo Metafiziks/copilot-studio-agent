@@ -1,8 +1,0 @@
-mcs.metadata:
-  componentName: OL Knowledge Library
-  description: Documents in the main knowledge site
-kind: KnowledgeSourceConfiguration
-source:
-  kind: SharePointSearchSource
-  triggerCondition: true
-  site: https://contoso.sharepoint.com/sites/ol-knowledge/Shared%20Documents

@@ -17,7 +17,7 @@ on:
       - "agent/**"
       - "scripts/provision.sh"
       - "scripts/_common.sh"
-      - "scripts/render_knowledge.py"
+      - "scripts/render_agent.py"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 

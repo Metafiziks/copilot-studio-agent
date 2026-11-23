@@ -1,8 +1,0 @@
-mcs.metadata:
-  componentName: OL Restricted Library
-  description: Documents in the restricted site
-kind: KnowledgeSourceConfiguration
-source:
-  kind: SharePointSearchSource
-  triggerCondition: true
-  site: https://contoso.sharepoint.com/sites/ol-restricted/Shared%20Documents

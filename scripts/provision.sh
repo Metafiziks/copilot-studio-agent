@@ -15,7 +15,8 @@
 #   1 preflight     tools and sign-ins
 #   2 environment   Developer environment via pac
 #   3 sharepoint    private site(s) as Microsoft 365 groups via Graph, then the documents
-#   4 agent         create from the template if missing, bind a workspace, render knowledge, push, publish
+#   4 agent         create the harness agent if missing (pac copilot init), apply agent/settings.mcs.yml
+#                   (model, instructions, memory) and the knowledge sources, push, publish
 #   5 next steps    what a script cannot do (sharing, labels) and what to wait for
 set -euo pipefail
 # shellcheck source=scripts/_common.sh
@@ -47,7 +48,6 @@ fi
 log "1/5 preflight"
 require_cmd pac "Install: dotnet tool install --global Microsoft.PowerApps.CLI.Tool (see guides/setup.md)"
 require_cmd python3 "Python 3.10+ is required."
-require_cmd rsync "rsync is required to stage the agent template."
 pac auth list 2>&1 | grep -q '\*' || die "No active pac profile. Run: pac auth create --deviceCode --tenant <tenant-id>"
 # Graph (via az) is only needed to create sites and upload documents, so a CI deploy can skip it.
 if [ "$SKIP_SHAREPOINT" = false ]; then
@@ -82,8 +82,8 @@ fi
 run pac org select --environment "$ENV_URL"
 
 # ---------------------------------------------------------------------------------------------
-KB_URL="https://${SP_HOST}/sites/${KB_SITE_NICK}/Shared%20Documents"
-RESTRICTED_URL="https://${SP_HOST}/sites/${RESTRICTED_SITE_NICK}/Shared%20Documents"
+KB_URL="https://${SP_HOST}/sites/${KB_SITE_NICK}"
+RESTRICTED_URL="https://${SP_HOST}/sites/${RESTRICTED_SITE_NICK}"
 
 sp() { python3 "$ROOT/scripts/sharepoint.py" "$@"; }
 
@@ -122,52 +122,49 @@ else
   if [ -z "$AGENT_ID" ] && [ "$NO_CREATE" = true ]; then
     die "agent '$AGENT_NAME' not found in $ENV_URL and --no-create was given. It may not exist, or the signed-in identity may lack read access to it (a user-level role cannot see an agent another user owns)."
   fi
+
+  # The workspace is rebuilt every run from the live agent, so it can never hold a stale environment
+  # binding, and the repo's agent/ folder stays pure desired state.
+  WS="$ROOT/.build/workspace"
+  run rm -rf "$WS"
+  run mkdir -p "$WS"
   if [ -z "$AGENT_ID" ]; then
-    note "not found; creating from the template (pack cannot carry knowledge, so it is added after)"
-    stage="$(mktemp -d)"
-    mkdir -p "$stage/workspace"
-    rsync -a --exclude knowledge --exclude .mcs "$ROOT/agent/" "$stage/workspace/"
-    run pac copilot pack --publisher-prefix "$PUBLISHER_PREFIX" --project-dir "$stage/workspace" \
-      --solution-name "$SOLUTION_NAME" --output-path "$stage"
+    note "not found; creating a harness (CliCopilot) agent (about 3 minutes)"
     # A just-created environment answers "Async operations are currently disabled" for a few minutes.
     run retry_on 'Async operations are currently disabled' 30 30 \
-      pac solution import --path "$stage/$SOLUTION_NAME.zip" --publish-changes --async --max-async-wait-time 30
+      pac copilot init --name "$AGENT_NAME" --publisher-prefix "$PUBLISHER_PREFIX" \
+        --authoring-mode cli-copilot --environment "$ENV_URL" --project-dir "$WS"
     if [ "$DRY_RUN" = false ]; then
       AGENT_ID="$(agent_id)"
-      [ -n "$AGENT_ID" ] || die "agent not found after import; check: pac copilot list"
+      [ -n "$AGENT_ID" ] || die "agent not found after init; check: pac copilot list"
     else
       AGENT_ID="<new-agent-id>"
     fi
   else
     note "found: $AGENT_ID"
-  fi
-
-  # A pushable workspace needs the .mcs/ binding for THIS environment. Re-create it with a clone
-  # when it is missing or points elsewhere.
-  if ! grep -qF "${ENV_URL%/}" "$ROOT/agent/.mcs/conn.json" 2>/dev/null; then
-    note "binding agent/ to this environment"
     if [ "$DRY_RUN" = true ]; then
-      note "[dry-run] pac copilot clone --bot $AGENT_ID, then copy its .mcs/ into agent/"
+      note "[dry-run] pac copilot clone --bot $AGENT_ID --output-dir <staging>, then use it as the workspace"
     else
       clone_dir="$(mktemp -d)"
       pac copilot clone --bot "$AGENT_ID" --output-dir "$clone_dir" >/dev/null
       src="$(find "$clone_dir" -maxdepth 2 -name .mcs -type d | head -1)"
-      [ -n "$src" ] || die "clone did not produce a .mcs/ folder"
-      rm -rf "$ROOT/agent/.mcs"
-      cp -R "$src" "$ROOT/agent/.mcs"
+      [ -n "$src" ] || die "clone did not produce a workspace (.mcs/ folder)"
+      rm -rf "$WS"
+      mv "$(dirname "$src")" "$WS"
     fi
   fi
 
-  sources=(--source "OL Knowledge Library|Documents in the main knowledge site|$KB_URL")
+  # Knowledge sources are sites, not libraries: the harness searches the whole site.
+  sources=(--source "OL Knowledge|Documents in the main knowledge site|$KB_URL")
   if [ "$KB_ACCESS_MODE" = protected ]; then
-    sources+=(--source "OL Restricted Library|Documents in the restricted site|$RESTRICTED_URL")
+    sources+=(--source "OL Restricted|Documents in the restricted site|$RESTRICTED_URL")
   fi
-  run python3 "$ROOT/scripts/render_knowledge.py" --out "$ROOT/agent/knowledge" "${sources[@]}"
+  run python3 "$ROOT/scripts/render_agent.py" --workspace "$WS" --definition "$ROOT/agent" "${sources[@]}"
 
   if [ "$DRY_RUN" = true ]; then
-    note "[dry-run] (cd agent && pac copilot push) && pac copilot publish --bot $AGENT_ID"
+    note "[dry-run] (cd $WS && pac copilot push) && pac copilot publish --bot $AGENT_ID"
   else
-    (cd "$ROOT/agent" && pac copilot push)
+    (cd "$WS" && pac copilot push)
     pac copilot publish --bot "$AGENT_ID"
     published="$(pac copilot list 2>/dev/null | grep -F "$AGENT_NAME" | tr -s ' ' | cut -c1-120)"
     note "agent: $published"
@@ -184,17 +181,21 @@ EOF
 cat >&2 <<EOF
 
   Not scriptable, do these by hand:
-   1. Share the agent: Copilot Studio > agent > Share. Grant users 'End user access'; the test pane
-      needs 'Editor' (remove it afterwards).
-   2. Wait for SharePoint indexing. New sites take roughly 20-30 minutes before the agent can find
+   1. Share the agent: Copilot Studio > agent > Share. Grant users 'End user access'. Without it the
+      Agents SDK gets a 404 for that user.
+   2. Make sure every user who will talk to the agent holds a SharePoint-bearing license (for example
+      Microsoft 365 Business Premium). The agent searches SharePoint AS the signed-in user, and for an
+      unlicensed user the search tools fail (an unlicensed site owner can open files but cannot search
+      them). See README > Troubleshooting.
+   3. Wait for SharePoint indexing. New sites take roughly 20-30 minutes before the agent can find
       their content; 'Search this site' in SharePoint is a cheap check.
 EOF
 if [ "$KB_ACCESS_MODE" = protected ]; then
   cat >&2 <<EOF
-   3. Apply the sensitivity label to restricted.docx INSIDE SharePoint: as the user the label policy
+   4. Apply the sensitivity label to restricted.docx INSIDE SharePoint: as the user the label policy
       is published to, in Word for the web (normal window, Editing mode), use Sensitivity. Files
       labeled elsewhere before upload are not enforced. See guides/purview.md.
-   4. Run the two-user check from guides/purview.md.
+   5. Run the two-user check from guides/purview.md.
 EOF
 fi
 [ "$DRY_RUN" = true ] && log "dry run complete; nothing was changed"

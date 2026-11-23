@@ -26,7 +26,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCOPE = "https://api.powerplatform.com/.default"
-TOKEN_CACHE = ROOT / ".build" / "token_cache.json"
+# AGENT_TOKEN_CACHE lets one checkout hold sign-ins for several test users (e.g. an allowed and a denied
+# user when verifying protected mode); the default is the single shared cache.
+TOKEN_CACHE = Path(os.environ.get("AGENT_TOKEN_CACHE") or ROOT / ".build" / "token_cache.json")
 
 
 def load_dotenv(path: Path = ROOT / ".env") -> None:

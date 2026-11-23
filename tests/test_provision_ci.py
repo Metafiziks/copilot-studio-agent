@@ -1,6 +1,7 @@
 """provision.sh in CI shape: no az, no test users, environment URL supplied. Runs against stub tools."""
 
 import os
+import re
 import stat
 import subprocess
 import sys
@@ -22,7 +23,7 @@ def run_provision(tmp_path: Path, *args: str, extra_env: dict | None = None) -> 
     stub(bin_dir / "pac", f"""
 case "$1 $2" in
   "auth list") echo "[1] * UNIVERSAL ci  app  Public  dev  https://x.crm.dynamics.com/" ;;
-  "copilot list") echo "OL Knowledge Agent {AGENT_ID} Published False" ;;
+  "copilot list") echo "OL Memory Agent {AGENT_ID} Published False" ;;
   *) echo "pac $*" ;;
 esac
 """)
@@ -77,16 +78,35 @@ def test_no_create_refuses_to_create_when_the_agent_is_not_visible(tmp_path):
     result = run_provision_without_agent(tmp_path, "--dry-run", "--skip-sharepoint", "--no-create")
     assert result.returncode != 0
     assert "--no-create" in result.stderr and "cannot see an agent" in result.stderr
-    assert "creating from the template" not in result.stderr
-    assert "pac solution import" not in result.stderr
+    assert "creating a harness" not in result.stderr
+    assert "pac copilot init" not in result.stderr
 
 
 def test_without_no_create_a_missing_agent_is_created(tmp_path):
     result = run_provision_without_agent(tmp_path, "--dry-run", "--skip-sharepoint")
     assert result.returncode == 0, result.stderr
-    assert "creating from the template" in result.stderr
+    assert "creating a harness (CliCopilot) agent" in result.stderr
+    assert "pac copilot init --name OL Memory Agent --publisher-prefix olk --authoring-mode cli-copilot" in result.stderr
 
 
 def test_protected_mode_still_requires_users_when_sharepoint_runs(tmp_path):
     result = run_provision(tmp_path, "--dry-run", extra_env={"KB_ACCESS_MODE": "protected"})
     assert result.returncode != 0 and "ALLOWED_USER" in result.stderr
+
+
+def test_dry_run_applies_the_definition_with_site_level_knowledge(tmp_path):
+    result = run_provision(tmp_path, "--dry-run", "--skip-sharepoint")
+    assert result.returncode == 0, result.stderr
+    assert "render_agent.py" in result.stderr and "--definition" in result.stderr
+    assert re.search(r"\|https://[^|\s]+/sites/ol-knowledge(\s|$)", result.stderr)   # host may come from a local .env
+    assert "Shared%20Documents" not in result.stderr      # site, not library
+
+
+def test_protected_mode_adds_the_restricted_site_as_a_second_source(tmp_path):
+    result = run_provision(tmp_path, "--dry-run", "--skip-sharepoint", extra_env={"KB_ACCESS_MODE": "protected"})
+    assert "sites/ol-restricted" in result.stderr
+
+
+def test_the_sharing_and_license_reminders_are_printed(tmp_path):
+    result = run_provision(tmp_path, "--dry-run", "--skip-sharepoint")
+    assert "End user access" in result.stderr and "SharePoint-bearing license" in result.stderr

@@ -75,9 +75,8 @@ load_env() {
   fi
   ENV_NAME="${ENV_NAME:-copilot-agent-dev}"
   ENV_REGION="${ENV_REGION:-north-america}"
-  AGENT_NAME="${AGENT_NAME:-OL Knowledge Agent}"
+  AGENT_NAME="${AGENT_NAME:-OL Memory Agent}"
   PUBLISHER_PREFIX="${PUBLISHER_PREFIX:-olk}"
-  SOLUTION_NAME="${SOLUTION_NAME:-OLKnowledgeAgent}"
   KB_ACCESS_MODE="${KB_ACCESS_MODE:-sample}"
   KB_SITE_NICK="${KB_SITE_NICK:-ol-knowledge}"
   KB_SITE_TITLE="${KB_SITE_TITLE:-OL Knowledge}"

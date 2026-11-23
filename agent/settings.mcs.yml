@@ -1,24 +1,24 @@
-displayName: OL Knowledge Agent
-schemaName: olk_OLKnowledgeAgent
+displayName: OL Memory Agent
+schemaName: olk_OLMemoryAgent
 accessControlPolicy: GroupMembership
 authenticationMode: Integrated
 authenticationTrigger: Always
 configuration:
-  settings:
-    GenerativeActionsEnabled: true
-
-  isAgentConnectable: true
-  gPTSettings:
-    defaultSchemaName: olk_OLKnowledgeAgent.gpt.default
-
-  aISettings:
-    useModelKnowledge: false
-    isFileAnalysisEnabled: true
-    isSemanticSearchEnabled: true
-    optInUseLatestModels: false
-
   recognizer:
-    kind: GenerativeAIRecognizer
+    kind: CLICopilotRecognizer
 
-template: default-2.1.0
+  agentSettings:
+    model:
+      series: Sonnet46
+
+    instructions:
+      segments:
+        - kind: StaticSegment
+          value: "Answer questions using only the documents you retrieve from your knowledge sources. Say which document each answer comes from. If the documents do not contain the answer, say so plainly instead of guessing. Remember the user's stated preferences and apply them in later conversations."
+
+    enableMemory: true
+
+  authoringModel: CliCopilot
+
+template: cliagent-1.0.0
 language: 1033

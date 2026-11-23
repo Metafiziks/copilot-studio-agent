@@ -238,7 +238,7 @@ set up by hand and are not scripted.
 
 ## CI/CD
 
-**Status: `ci.yml` and `deploy.yml` are verified on GitHub against the harness agent. `eval.yml` is untested: it needs the licensed test user's sign-in cache as a secret and the target agent variables, none of which are set for the new agent.**
+**Status: `ci.yml` and `deploy.yml` are verified on GitHub against the harness agent. `eval.yml` is configured (licensed test user's sign-in cache as a secret, target agent variables) but has not been run.**
 
 | Workflow | Trigger | What it does |
 |---|---|---|
@@ -284,8 +284,9 @@ as the **signed-in user**. An app-only call has no user for SharePoint to trim b
 retrieval to come back empty (not tested). Deploying with `pac` can run from CI under the federated
 identity; evals need a user who holds a SharePoint-bearing license, so they run on demand from a signed-in
 session unless a dedicated test user's refresh token is stored as a secret, which breaks on conditional
-access and idle expiry. `eval.yml` also needs the repository variables `AGENT_ENVIRONMENT_ID` and
-`AGENT_SCHEMA_NAME` pointing at an agent whose site holds the sample corpus, which are not set yet.
+access and idle expiry. `eval.yml` runs as that user from the `EVAL_TOKEN_CACHE` secret (Jane's sign-in cache in this test tenant)
+and the variables `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME`, which point at the e2e agent whose site holds
+the sample corpus. They are set; the workflow has not been run yet.
 
 ## Configuration
 
@@ -322,7 +323,7 @@ Set in `.env` (see `.env.example`).
 | GitHub Actions | `ci.yml` green. `deploy.yml` ran on the harness agent as the app identity: OIDC sign-in, clone, apply, "No local changes detected" (idempotent), publish. `pac` 2.16.1 failed twice while parsing the publish status ("Invalid response format") although the bot record showed the publish had succeeded, then passed on a third run; a verification step handles that error (unit-tested with fake commands, not yet hit live). The step that prints `pac`'s own log on failure found it |
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | Not available for this agent type (see Observability) |
-| `eval.yml` | Not run; its variables and secret are not set |
+| `eval.yml` | Secret and variables set (licensed test user, e2e agent); not run yet, waiting on an indexed corpus site |
 | RAG eval pass | Pending: waiting on SharePoint to index a corpus site |
 
 ## Troubleshooting

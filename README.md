@@ -143,7 +143,7 @@ version would use the signals that are exposed (latency, reference counts, token
 
 ## CI/CD
 
-**Status: `ci.yml` passes on GitHub. `deploy.yml` signs in with OIDC successfully but is blocked on a Dataverse role (below). `eval.yml` is untested.**
+**Status: `ci.yml` and `deploy.yml` are verified on GitHub. `eval.yml` is untested: its sign-in secret is stored, but the target agent variables are not set.**
 
 | Workflow | Trigger | What it does |
 |---|---|---|
@@ -162,11 +162,15 @@ gh variable set DATAVERSE_ENV_URL --env dev --body <url>                        
 
 No secret is stored for deploys. A production environment was deferred.
 
+**Verified runs.** `deploy.yml` signs in with OIDC as the app, binds the workspace, pushes and
+publishes; a run with nothing changed reports "No local changes detected" and still publishes. The
+federated credential and the role were each wrong once before it worked (details below).
+
 **Role.** Pushing an agent that another user owns needs organization-level access to the bot and bot
 component tables. In the test environment, `Bot Author`, `Bot Contributor`, `Bot Viewer` and
 `Environment Maker` are all **user-level** (the app sees only records it owns, so `pac copilot list`
 returned nothing for it), while `System Customizer` is **organization-level** for read, write and
-create. `System Customizer` is the narrowest standard role that works. `deploy.yml` runs
+create. `System Customizer` is the narrowest standard role that works; the app holds it (plus `Bot Author`, which became redundant). `deploy.yml` runs
 `provision.sh --no-create`, so an agent the identity cannot see is a hard failure and never a re-import
 of the template.
 
@@ -208,9 +212,10 @@ Set in `.env` (see `.env.example`).
 | `provision.sh --dry-run`, both modes | Ran against a real tenant, changed no tracked files. **Protected mode was only dry-run**, not provisioned for real |
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, all exercised for real |
 | `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
+| GitHub Actions | `ci.yml` green. `deploy.yml`: OIDC sign-in, push and publish succeeded as the app with `System Customizer`; a follow-up run was a no-op ("No local changes detected"). Two earlier failures were real: the credential's subject lacked GitHub's immutable IDs, and a user-level role could not see the agent (which also exposed a create-path hazard, now guarded by `--no-create`). A diff of the live agent after the first successful deploy showed the only changes were two knowledge-source descriptions, caused by hand-written committed files; they are now generated and test-guarded |
 | Eval runner | First live call succeeded (device-code sign-in, user token, agent reply in 20 s). The agent's answer was the fallback because the new site was not yet indexed; results pending |
 | Access restriction | Demonstrated at site and document level in the test pane; see [guides/purview.md](guides/purview.md) |
-| Memory, telemetry, CI workflows | Not run |
+| Memory, telemetry, `eval.yml` | Not run |
 
 ## Troubleshooting
 
@@ -241,7 +246,7 @@ Set in `.env` (see `.env.example`).
 | Agent runtime | Foundry hosted agent (Python) | Copilot Studio agent, low-code, YAML via `pac` | Bedrock Agents | Google ADK + Cloud Run |
 | RAG | Azure AI Search | SharePoint knowledge (Microsoft Search) | Bedrock Knowledge Bases | Vertex AI Search |
 | Vector store | AI Search (built in) | Managed by the platform | OpenSearch Serverless | Vertex AI Search (built in) |
-| CI auth | Azure OIDC | Entra federated credential (planned) | GitHub OIDC | Workload Identity Federation |
+| CI auth | Azure OIDC | Entra federated credential (GitHub OIDC; deploy verified) | GitHub OIDC | Workload Identity Federation |
 | Eval judge | GPT-5 + HHEM | Built-in graders (planned) | Amazon Nova Pro | Gemini 3.5 Flash |
 | Memory | Foundry Memory Store | Copilot Studio Memory, preview (planned) | Bedrock session-summary memory | ADK session/user state |
 | Protected mode | `KB_ACCESS_MODE=purview` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` |

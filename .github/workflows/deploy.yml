@@ -64,3 +64,9 @@ jobs:
         # Sites and documents are provisioned separately. --no-create makes a missing or invisible agent a
         # hard failure instead of a re-import of the template over it.
         run: bash scripts/provision.sh --skip-sharepoint --no-create
+
+      - name: Show pac's own log when the deploy fails
+        if: failure()
+        run: |
+          log="$HOME/.dotnet/tools/.store/microsoft.powerapps.cli.tool/$PAC_VERSION/microsoft.powerapps.cli.tool/$PAC_VERSION/tools/net10.0/any/logs/pac-log.txt"
+          [ -f "$log" ] && tail -n 80 "$log" || echo "no pac log at $log"

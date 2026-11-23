@@ -165,17 +165,22 @@ the harness agent:
 - **Keyword match does not read the CSV.** It wants keywords typed per row in the UI (Any or All applies to
   the whole set); the `Expected response` column did not populate them. Not worth ~60 hand-typed entries
   when `run_evals.py` already scores keyword recall, so only **General quality** (the LLM-judged one) is set.
-- **A run needs an authenticated account** (Manage profile and connections). The only choice is "Add an
-  account", an OAuth sign-in with that user's credentials, so it is a human step. The evaluation
-  ("RAG quality - e2e", 12 cases, General quality) is saved on the e2e agent; pick the account and press
-  Run. Results were not produced here.
+- **A run was attempted and fails for this agent type.** The run needs an authenticated account
+  (Manage profile and connections > Add an account, an OAuth sign-in by a person), done here as a licensed
+  user. All 12 cases returned *Error* ("The agent rejected this request as invalid, so this test case
+  couldn't be evaluated") in 34 s at 0 credits, and Application Insights shows no `InvokeAgent` span for the
+  run, so the evaluator never reached the agent. Microsoft documents evaluation only for agents on the
+  *standard harness* (with No authentication or Authenticate with Microsoft), never mentions CLI-created
+  agents, and gives the *Error* state no meaning. Treat the built-in evaluation as unsupported for this agent
+  type; `scripts/run_evals.py` is the evaluation. A standard-harness agent was not run as a control (the
+  classic agent that could have been was deleted just before), so this is the likely cause, not a proven one.
 
 How each Azure metric maps:
 
 | Azure metric | Copilot Studio | Status |
 |---|---|---|
-| Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Configured, not run (needs an account sign-in) |
-| Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Configured, not run (needs an account sign-in) |
+| Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Attempted; the evaluator rejects this agent type (see above) |
+| Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Attempted; the evaluator rejects this agent type (see above) |
 | Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.986** |
 | Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
 | p95 latency | `scripts/run_evals.py` | **25.7 s** |
@@ -275,7 +280,7 @@ Things to know:
 - The destination was verified independently by posting a synthetic span to the ingestion endpoint (seen in
   `dependencies` within a minute), so an empty table means nothing is being sent, not that the resource is
   misconfigured. Avoid pointing both agent-level and environment-level telemetry at one Application
-  Insights resource (the classic agent here still does, which is why `customEvents` also fills up).
+  Insights resource (the earlier classic agent did, which is why `customEvents` also filled up; it has been deleted).
 - Preview limits from the page: possible small data loss, truncation of long content, no `duration` for some
   traces, no topic events.
 
@@ -439,7 +444,7 @@ Set in `.env` (see `.env.example`).
 | RAG | Azure AI Search | SharePoint knowledge (Microsoft Search) | Bedrock Knowledge Bases | Vertex AI Search |
 | Vector store | AI Search (built in) | Managed by the platform | OpenSearch Serverless | Vertex AI Search (built in) |
 | CI auth | Azure OIDC | Entra federated credential (GitHub OIDC; deploy verified) | GitHub OIDC | Workload Identity Federation |
-| Eval judge | GPT-5 + HHEM | Deterministic metrics in `scripts/run_evals.py`; built-in General quality configured, awaiting an account sign-in | Amazon Nova Pro | Gemini 3.5 Flash |
+| Eval judge | GPT-5 + HHEM | Deterministic metrics in `scripts/run_evals.py`; built-in Agent Evaluation attempted and rejected for this agent type | Amazon Nova Pro | Gemini 3.5 Flash |
 | Memory | Foundry Memory Store | Copilot Studio Memory (`enableMemory`), per user; verified | Bedrock session-summary memory | ADK session/user state |
 | Protected mode | `KB_ACCESS_MODE=purview` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` |
 | Protection mechanism | Purview labels via Foundry IQ | SharePoint permissions + encrypted Purview labels | Knowledge Base document ACLs | Agent Search document ACLs |

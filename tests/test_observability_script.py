@@ -71,6 +71,7 @@ def test_everything_existing_is_reused_and_the_connection_string_is_printed(tmp_
     assert result.returncode == 0, result.stderr
     assert result.stderr.count("found") == 3
     assert CONNECTION in result.stderr
+    assert 'Log conversation details' in result.stderr   # the privacy reminder is always printed
     assert not any(" create" in c or c.startswith("extension add") for c in calls)
 
 

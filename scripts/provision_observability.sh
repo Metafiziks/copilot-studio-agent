@@ -90,5 +90,10 @@ then paste this connection string (it is an identifier, not a secret, but treat 
 
   $CONNECTION
 
+BEFORE connecting a protected-documents agent: turn OFF "Log conversation details" in the same panel and
+publish the agent. By default the platform's events log the user's question, the agent's reply and the
+user's identity; turning it off removes the text and display name (the Entra object ID stays). See
+README > Observability.
+
 Query it from scripts with:  az monitor app-insights query --app $OBS_APPINSIGHTS -g $OBS_RESOURCE_GROUP --analytics-query "customEvents | take 5"
 EOF

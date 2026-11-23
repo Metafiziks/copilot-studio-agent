@@ -119,8 +119,10 @@ signed-in user. It was not tested through Teams or Microsoft 365 Copilot.
   the outcome shows labeling and enforcement work for newly labeled files.
 - A user in the denied group still receives anything in documents they may open. Unlabeled files
   are not blocked by this mode.
-- **Telemetry can copy what the labels withheld.** If the agent is connected to Application Insights,
-  the platform's own events log the user's question, the agent's reply text and the user's identity by
-  default. A reply Copilot Studio gave one user is therefore readable by anyone who can query that
-  workspace, regardless of any label. Treat the workspace as holding the same sensitivity as the
-  documents, restrict who can read it, and see the privacy note in the README's Observability section.
+- **Telemetry can copy what the labels withheld.** If the agent is connected to Application Insights, the
+  platform's own events log the user's question, the agent's reply text and the user's identity by
+  default, so a reply Copilot Studio gave one user is readable by anyone who can query that workspace,
+  regardless of any label. Turn **Log conversation details** off (Settings > Advanced > Application
+  Insights) and **publish**: in testing that removed the question, the reply and the display name from
+  the events, but the user's Entra object ID stayed. Restrict who can read the workspace anyway. See the
+  README's Observability section.

@@ -1,6 +1,6 @@
 mcs.metadata:
   componentName: OL Restricted Library
-  description: Documents in the OL Restricted SharePoint site (Jane only)
+  description: Documents in the restricted site
 kind: KnowledgeSourceConfiguration
 source:
   kind: SharePointSearchSource

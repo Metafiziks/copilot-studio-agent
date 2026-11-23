@@ -1,6 +1,6 @@
 mcs.metadata:
   componentName: OL Knowledge Library
-  description: Documents in the OL Knowledge SharePoint site
+  description: Documents in the main knowledge site
 kind: KnowledgeSourceConfiguration
 source:
   kind: SharePointSearchSource

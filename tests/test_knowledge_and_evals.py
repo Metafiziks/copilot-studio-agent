@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -52,6 +53,16 @@ def test_parse_source_requires_three_parts():
     assert render_knowledge.parse_source("a|b|https://x") == ("a", "b", "https://x")
     with pytest.raises(ValueError):
         render_knowledge.parse_source("a|b")
+
+
+def test_committed_knowledge_files_are_exactly_what_the_renderer_produces():
+    """The repo must hold what provision.sh / CI render, or every deploy rewrites the live agent."""
+    files = sorted((ROOT / "agent" / "knowledge").glob("SharePointSearchSource.*.mcs.yml"))
+    assert files
+    for path in files:
+        text = path.read_text()
+        fields = {k: re.search(rf"^\s*{k}: (.+)$", text, re.M).group(1).strip("'") for k in ("componentName", "description", "site")}
+        assert render_knowledge.render_source(fields["componentName"], fields["description"], fields["site"]) == text, path.name
 
 
 def test_committed_knowledge_files_match_the_renderer_layout():

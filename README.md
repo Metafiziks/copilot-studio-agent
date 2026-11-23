@@ -136,7 +136,7 @@ Store, but it has not been enabled or tested on this agent. The two-turn recall 
 
 ## Observability
 
-**Status: Azure resources and telemetry emission built; not yet connected to the agent or queried.**
+**Status: built and verified end to end on a test agent; anomaly detection not built.**
 
 ```bash
 bash scripts/provision_observability.sh          # resource group, Log Analytics workspace, Application Insights
@@ -150,9 +150,25 @@ Application Insights.
 
 The `Conversational boosting` topic (`agent/topics/Search.mcs.yml`) emits a `KnowledgeSearch` custom event
 for every knowledge lookup, with `ConversationId`, `HasAnswer`, `AnswerChars`, `QuestionChars` and
-`SearchMs`. It deliberately records **features only**: no question text and no answer text. The server
-accepted and published the topic on a test agent; its runtime behaviour is confirmed only once a real
-conversation produces an event.
+`SearchMs`. It deliberately records **features only**: no question text and no answer text.
+
+**Verified.** After connecting a test agent in the portal, conversations produced 51 events within about
+two minutes, including `KnowledgeSearch` with correct values (for example `QuestionChars=103`,
+`SearchMs=4291`, `HasAnswer=false`, `AnswerChars=0`), so the Power Fx, including the `DateDiff` latency,
+evaluates correctly at runtime. The platform also emits its own events: `BotMessageReceived`,
+`BotMessageSend`, `TopicStart`, `TopicAction`, `TopicEnd` and `GenerativeAnswers`, whose `Result`
+(for example `No Search Results`) is a built-in retrieval outcome.
+
+> **Privacy: the platform's own events log content and identities by default.** In this tenant,
+> `GenerativeAnswers.Message` held the user's full question, `BotMessageSend.text` the agent's full reply,
+> and `BotMessageReceived` the user's ID and display name. For a protected-documents agent this matters:
+> an answer Copilot Studio withheld from one user because of a sensitivity label is still copied, if
+> given, into a workspace governed by Azure access rules, which the label does not control. Before
+> connecting a real agent: restrict read access to the workspace (today only the subscription owner and
+> one service principal can read it), keep the 30-day retention short, and look in the same portal
+> panel for the activity-logging and sensitive-property options (which of these fields they remove was
+> **not tested**; check by probing and re-querying). Do not assume the features-only `KnowledgeSearch`
+> event protects anything while these events flow.
 
 ```kql
 customEvents
@@ -249,7 +265,7 @@ Set in `.env` (see `.env.example`).
 | Eval runner | First live call succeeded (device-code sign-in, user token, agent reply in 20 s). The agent's answer was the fallback because the new site was not yet indexed; results pending |
 | Access restriction | Demonstrated at site and document level in the test pane; see [guides/purview.md](guides/purview.md) |
 | Observability resources | Created in Azure and read back: workspace cap 1 GB/day, 30-day retention, Application Insights linked to the workspace. The script is tested against a stub `az` (4 tests) |
-| `KnowledgeSearch` telemetry | The topic round-trips through the server and publishes on a test agent. **No event has been observed yet** (the agent is not connected to Application Insights) |
+| `KnowledgeSearch` telemetry | Observed in Application Insights after connecting a test agent: correct values, about two minutes after the conversation. The same run showed the platform's own events logging question text, reply text and user identity (see the privacy note under Observability) |
 | Memory, `eval.yml` | Not run |
 
 ## Troubleshooting

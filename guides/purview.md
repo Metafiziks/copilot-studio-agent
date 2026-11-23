@@ -137,8 +137,9 @@ classic, topic-based version of this agent.
   Insights logged the user's question, the agent's reply and the user's identity by default, so a reply
   withheld from one user by a label was readable by anyone who could query the workspace. The harness
   agent has no Application Insights setting (Settings > Advanced offers only solutions and a channel-name
-  suffix), so that path does not exist today; if a connection appears later, test what it logs before
-  enabling it. See the README's Observability section.
+  suffix), so that path does not exist. Microsoft's environment-level telemetry preview would log prompts,
+  replies, tool results and user identity with no documented way to turn them off, so do not enable it on an
+  environment that holds protected documents. See the README's Observability section.
 - **Agent memory is per user.** Memory stores the user's own preferences, so one user's memory is not
   shown to another. It is Microsoft-managed storage, not governed by sensitivity labels: do not tell the
   agent to "remember" the contents of protected documents.

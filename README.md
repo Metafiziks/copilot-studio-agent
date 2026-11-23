@@ -11,7 +11,7 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > Done and verified: one-script provision (create or update, idempotent), per-user memory, per-user
 > restriction at site and document level (two users, side by side), CI and OIDC deploy. **Not done:** a
 > passing scored RAG eval (the first run failed because the test site was not in SharePoint's search index
-> yet; see Evaluations), telemetry (the harness agent exposes none), and anomaly detection. **Every user,
+> yet; see Evaluations), telemetry (no per-agent setting; an environment-level preview is documented but untested), and anomaly detection. **Every user,
 > including every eval user, needs a SharePoint-bearing license**, or the agent finds nothing. Each section
 > says exactly where it stands.
 
@@ -205,14 +205,15 @@ test user.
 
 ## Observability
 
-**Status: the previous telemetry design does not apply to this agent type, and nothing replaces it yet.**
+**Status: the previous per-agent telemetry does not apply to this agent type. Microsoft documents an
+environment-level telemetry preview that may cover it; it is not set up and untested here.**
 
 On the earlier classic agent, a topic emitted a `KnowledgeSearch` custom event to Application Insights
 (question length, answer length, search latency, answered or not; verified end to end, including a privacy
 test that showed the platform's own events log question text, reply text and user identity unless
 **Log conversation details** is turned off). A harness agent has no topics, and checked in the portal:
 
-- **No Application Insights setting.** Settings > Advanced offers only solutions and a channel-name suffix.
+- **No per-agent Application Insights setting.** Settings > Advanced offers only solutions and a channel-name suffix. (An environment-level option exists; see below.)
 - **No Dataverse transcripts.** Harness conversations did not appear in the `conversationtranscripts` table
   (queried directly after several conversations).
 - **What is visible.** The test pane shows each tool call (including failures such as the search error
@@ -220,15 +221,42 @@ test that showed the platform's own events log question text, reply text and use
   question that searches SharePoint); the admin center shows credit usage per agent once billed usage is
   reported. The portal's **Monitor** tab exists; it was not evaluated.
 
+**Environment-level telemetry (preview), documented but not tried.** Microsoft's
+[environment-level telemetry](https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-environment-level-agent-telemetry)
+exports every agent in an environment to Application Insights, configured by an administrator in the
+Power Platform admin center (an export package of type Copilot Studio), not on the agent. From the pages:
+
+- **Coverage is unclear for this agent.** Both pages say it covers the standard and the Microsoft Copilot
+  harness, and one note on the same page says only standard-harness agents built in Copilot Studio appear.
+  Neither page mentions CLI-created agents (`pac copilot init --authoring-mode cli-copilot`), so whether this
+  agent emits anything has to be tested.
+- **Prerequisites.** A **managed environment** (the dev and e2e environments here are plain Developer
+  environments), tenant-level Power Platform or Dynamics 365 administrator plus an environment admin role, an
+  Azure Application Insights resource with *Local authentication* on, and the public cloud. Delivery of a new
+  configuration can take up to 24 hours. Licensing and cost are not stated; scripting is not documented.
+- **What it records.** OpenTelemetry-style spans in `dependencies` (`InvokeAgent`, `ExecuteTool`,
+  `OutputMessages`) with the conversation ID, model, tool name, and, importantly, **the user's prompt, the
+  agent's reply, tool arguments and tool results, and the user's id, email and name**. No setting to turn
+  the content or identity off is documented. For a protected-documents agent that is the same exposure as
+  the classic agent's default (an answer withheld from one user by a label would sit in a workspace the
+  label does not govern, and tool results would carry document text), so it should not be enabled on the
+  protected-mode environment, and the workspace needs restricted read access.
+- **Limitations listed on the page:** preview, possible small data loss, truncation of large content, no
+  duration for some traces, no topic events.
+
+Trying it would mean enabling Managed Environments on a test environment holding only the non-sensitive
+sample corpus and creating the export in the admin center, then checking whether any `dependencies` rows
+appear for this agent.
+
 `scripts/provision_observability.sh` (Log Analytics workspace with a daily ingestion cap, workspace-based
 Application Insights) still works and is tested, but there is nothing to connect to it for this agent, so
 it is not part of the provisioning path. Teardown removes it with `--delete-observability`.
 
 | Azure template | Here | Status |
 |---|---|---|
-| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Nothing exposed by the harness agent | Not possible today |
+| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Environment-level export to Application Insights (`dependencies` spans): documented, preview, may not cover this agent type | Untested |
 | Per-request retrieval score, reranker score, chunk count | Not exposed | Cannot be reproduced |
-| `IsolationForest` over six retrieval features | Needs a telemetry feed that does not exist | Not built |
+| `IsolationForest` over six retrieval features | Needs a telemetry feed; only possible if the export above covers this agent | Not built |
 | HHEM faithfulness score in evals | Needs answer plus retrieved text; custom runner | Not built |
 | Weekly retrain workflow | | Not built |
 
@@ -322,7 +350,7 @@ Set in `.env` (see `.env.example`).
 | `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
 | GitHub Actions | `ci.yml` green. `deploy.yml` ran on the harness agent as the app identity: OIDC sign-in, clone, apply, "No local changes detected" (idempotent), publish. `pac` 2.16.1 failed twice while parsing the publish status ("Invalid response format") although the bot record showed the publish had succeeded, then passed on a third run; a verification step handles that error (unit-tested with fake commands, not yet hit live). The step that prints `pac`'s own log on failure found it |
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
-| Telemetry | Not available for this agent type (see Observability) |
+| Telemetry | No per-agent telemetry; environment-level preview documented, not tried (see Observability) |
 | `eval.yml` | Secret and variables set (licensed test user, e2e agent); not run yet, waiting on an indexed corpus site |
 | RAG eval pass | Pending: waiting on SharePoint to index a corpus site |
 

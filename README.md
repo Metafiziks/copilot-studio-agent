@@ -1,4 +1,4 @@
-# copilot-studio-search-agent
+# copilot-studio-agent
 
 A **Microsoft Copilot Studio** agent over your own SharePoint documents, defined as code and
 provisioned with one script. Ask a question, get an answer with cited source files, drawn only from
@@ -45,7 +45,7 @@ permissions and encrypted sensitivity labels decide what an answer can draw on. 
 tenant with SharePoint Online. Setup details are in [guides/setup.md](guides/setup.md).
 
 ```bash
-git clone <this repo> && cd copilot-studio-search-agent
+git clone https://github.com/Metafiziks/copilot-studio-agent && cd copilot-studio-agent
 pac auth create --deviceCode --tenant <tenant-id>
 az login --tenant <tenant-id> --allow-no-subscriptions     # sign in as the SAME identity
 cp .env.example .env                                         # set SP_HOST at minimum

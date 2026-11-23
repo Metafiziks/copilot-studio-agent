@@ -129,10 +129,37 @@ draft or published agent is evaluated, so triggering it from a script is not imp
 
 ## Memory
 
-**Status: not built.** Copilot Studio has a
-[Memory (preview)](https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/memory-overview)
-feature: a per-user, per-agent memory folder. It is the closest counterpart to the Foundry Memory
-Store, but it has not been enabled or tested on this agent. The two-turn recall case is ready.
+**Status: not available for this agent type; not built.**
+
+Copilot Studio has a [Memory (preview)](https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/memory-overview)
+feature, but it does not apply to the agent in this repository:
+
+- **What it is.** The agent itself decides what to keep (preferences, feedback, ongoing work), stored per
+  user and per agent in Microsoft-managed storage, and consults it at the start of a conversation.
+  Memories are deleted after 28 days of inactivity, cannot be exported, and an admin can only view a
+  user's memories through a support ticket. Turning the toggle off does not delete them immediately. It
+  is usage-billed.
+- **How it is enabled.** A **Memory** toggle on the **Build** tab, documented for agents on the
+  "GitHub Copilot harness". The pages describe no YAML, API, Dataverse or tenant setting, and say nothing
+  about the Agents SDK channel this repo's evals use.
+- **Why not here.** This is a classic, topic-based agent. Its portal page has no Build tab and no Memory
+  option (checked directly), and nothing named memory exists in its definition or configuration.
+- **The other agent shape.** `pac copilot init --authoring-mode cli-copilot` scaffolds a different kind of
+  agent (`authoringModel: CliCopilot`, a `CLICopilotRecognizer`, a Claude model series, instructions only,
+  with no topics or knowledge-source files). It is probably the memory-capable one, but that is untested,
+  and adopting it would replace the topic and knowledge design used throughout this repo, including the
+  telemetry node and the per-user SharePoint retrieval that was verified here.
+
+| Azure template | Here |
+|---|---|
+| Foundry Memory Store, scoped per user, written in the background | No counterpart for a classic agent |
+| Memory is not the source of truth: documents supply answers, memory only preferences | The same principle would hold under either option below |
+| Two-turn recall eval | The case stays in `tests/eval_cases.json` and `run_evals.py` skips it |
+
+Options if you want memory, none built: (1) accept the gap; (2) prototype a harness-type agent beside
+this one and test whether it can use SharePoint knowledge under the signed-in user; (3) keep a small
+preference store of your own (for example a Dataverse table keyed by the user's ID, read and written
+from topics), which reproduces the behaviour but is data you then own, secure and delete.
 
 ## Observability
 
@@ -304,7 +331,7 @@ Set in `.env` (see `.env.example`).
 | Vector store | AI Search (built in) | Managed by the platform | OpenSearch Serverless | Vertex AI Search (built in) |
 | CI auth | Azure OIDC | Entra federated credential (GitHub OIDC; deploy verified) | GitHub OIDC | Workload Identity Federation |
 | Eval judge | GPT-5 + HHEM | Built-in graders (planned) | Amazon Nova Pro | Gemini 3.5 Flash |
-| Memory | Foundry Memory Store | Copilot Studio Memory, preview (planned) | Bedrock session-summary memory | ADK session/user state |
+| Memory | Foundry Memory Store | Not available for classic agents (Copilot Studio Memory targets a different agent type) | Bedrock session-summary memory | ADK session/user state |
 | Protected mode | `KB_ACCESS_MODE=purview` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` |
 | Protection mechanism | Purview labels via Foundry IQ | SharePoint permissions + encrypted Purview labels | Knowledge Base document ACLs | Agent Search document ACLs |
 | Who proves the user | The user's delegated token, checked by AI Search | The user's Entra sign-in, checked by the platform | Your backend (API Gateway JWT authorizer) | The user's Google token, checked by Agent Search |

@@ -328,10 +328,17 @@ One-time setup, all scriptable except the last two:
 bash scripts/setup_entra_app.sh --github-repo owner/repo --github-environment dev   # federated credential
 pac admin assign-user --environment <url> --user <app-client-id> --application-user --role "System Customizer"   # see the role note below
 gh api -X PUT repos/owner/repo/environments/dev                                      # the environment name is part of the credential's subject
-gh variable set DATAVERSE_ENV_URL --env dev --body <url>                             # plus EVAL_CLIENT_ID, EVAL_TENANT_ID, SP_HOST, KB_ACCESS_MODE, KB_SITE_NICK, RESTRICTED_SITE_NICK
+# Identifying values go in as SECRETS, not variables: variables are printed in clear text in Actions logs,
+# which are public on a public repository, while secrets are masked from the first line.
+for n in DATAVERSE_ENV_URL EVAL_CLIENT_ID EVAL_TENANT_ID SP_HOST AGENT_ENVIRONMENT_ID; do
+  gh secret set "$n" --env dev          # prompts for the value
+done
+gh variable set KB_ACCESS_MODE --env dev --body protected    # plus KB_SITE_NICK, RESTRICTED_SITE_NICK, AGENT_SCHEMA_NAME
 ```
 
-No secret is stored for deploys. A production environment was deferred.
+No client secret is stored for deploys (OIDC); the five values above are secrets only so that logs stay clean.
+`scripts/mask_ci_values.sh` additionally masks the forms the platform derives from them (a URL's host, a
+GUID without dashes). A production environment was deferred.
 
 **Verified runs.** `deploy.yml` signs in with OIDC as the app, clones the live agent into a fresh workspace,
 applies `agent/`, pushes and publishes; a run with nothing changed reports "No local changes detected" and
@@ -361,7 +368,7 @@ retrieval to come back empty (not tested). Deploying with `pac` can run from CI 
 identity; evals need a user who holds a SharePoint-bearing license, so they run on demand from a signed-in
 session unless a dedicated test user's refresh token is stored as a secret, which breaks on conditional
 access and idle expiry. `eval.yml` runs as that user from the `EVAL_TOKEN_CACHE` secret (Jane's sign-in cache in this test tenant)
-and the variables `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME`, which point at the dev agent whose site holds
+and `AGENT_ENVIRONMENT_ID` (secret) / `AGENT_SCHEMA_NAME` (variable), which point at the dev agent whose site holds
 the sample corpus. They are set, and the workflow has passed once (see Verification).
 
 ## Configuration

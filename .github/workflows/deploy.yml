@@ -4,7 +4,8 @@ name: Deploy agent
 # with GitHub OIDC (a federated credential on the app registration): there is no client secret.
 #
 # One-time setup (see README > CI/CD):
-#   * GitHub environment `dev`, with the variables listed under `env:` below
+#   * GitHub environment `dev`, with the secrets and variables listed under `env:` below (identifying
+#     values are secrets so that public logs stay clean; see README > CI/CD)
 #   * the app registration's federated credential, subject repo:<owner>/<repo>:environment:dev
 #     (bash scripts/setup_entra_app.sh --github-repo <owner>/<repo> --github-environment dev)
 #   * the app registered as an application user in the Dataverse environment with an organization-level
@@ -36,10 +37,10 @@ jobs:
     environment: dev
     env:
       PAC_VERSION: "2.16.1"
-      TENANT_ID: ${{ vars.EVAL_TENANT_ID }}
-      CLIENT_ID: ${{ vars.EVAL_CLIENT_ID }}
-      ENV_URL: ${{ vars.DATAVERSE_ENV_URL }}
-      SP_HOST: ${{ vars.SP_HOST }}
+      TENANT_ID: ${{ secrets.EVAL_TENANT_ID }}
+      CLIENT_ID: ${{ secrets.EVAL_CLIENT_ID }}
+      ENV_URL: ${{ secrets.DATAVERSE_ENV_URL }}
+      SP_HOST: ${{ secrets.SP_HOST }}
       KB_ACCESS_MODE: ${{ vars.KB_ACCESS_MODE }}
       KB_SITE_NICK: ${{ vars.KB_SITE_NICK }}
       RESTRICTED_SITE_NICK: ${{ vars.RESTRICTED_SITE_NICK }}
@@ -47,7 +48,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Mask tenant details in the log
-        # Variables are not masked by default and this repository's logs are public.
+        # These values are secrets (always masked); this also masks forms derived from them. Logs are public.
         run: bash scripts/mask_ci_values.sh TENANT_ID CLIENT_ID ENV_URL SP_HOST
 
       - uses: actions/setup-dotnet@v4

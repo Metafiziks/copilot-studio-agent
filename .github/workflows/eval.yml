@@ -34,9 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     env:
-      EVAL_CLIENT_ID: ${{ vars.EVAL_CLIENT_ID }}
-      EVAL_TENANT_ID: ${{ vars.EVAL_TENANT_ID }}
-      AGENT_ENVIRONMENT_ID: ${{ vars.AGENT_ENVIRONMENT_ID }}
+      EVAL_CLIENT_ID: ${{ secrets.EVAL_CLIENT_ID }}
+      EVAL_TENANT_ID: ${{ secrets.EVAL_TENANT_ID }}
+      AGENT_ENVIRONMENT_ID: ${{ secrets.AGENT_ENVIRONMENT_ID }}
       AGENT_SCHEMA_NAME: ${{ vars.AGENT_SCHEMA_NAME }}
       EVAL_TOKEN_CACHE: ${{ secrets.EVAL_TOKEN_CACHE }}
       LIMIT: ${{ inputs.limit }}
@@ -44,7 +44,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Mask tenant details in the log
-        # Variables are not masked by default and this repository's logs are public.
+        # These values are secrets (always masked); this also masks forms derived from them. Logs are public.
         run: bash scripts/mask_ci_values.sh EVAL_CLIENT_ID EVAL_TENANT_ID AGENT_ENVIRONMENT_ID
 
       - uses: actions/setup-python@v5

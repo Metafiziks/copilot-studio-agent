@@ -274,7 +274,7 @@ set up by hand and are not scripted.
 
 ## CI/CD
 
-**Status: `ci.yml` and `deploy.yml` are verified on GitHub against the harness agent. `eval.yml` is configured (licensed test user's sign-in cache as a secret, target agent variables) but has not been run.**
+**Status: `ci.yml`, `deploy.yml` and `eval.yml` are all verified on GitHub against the harness agent. `eval.yml` runs as a licensed test user from a stored sign-in cache.**
 
 | Workflow | Trigger | What it does |
 |---|---|---|
@@ -321,8 +321,8 @@ retrieval to come back empty (not tested). Deploying with `pac` can run from CI 
 identity; evals need a user who holds a SharePoint-bearing license, so they run on demand from a signed-in
 session unless a dedicated test user's refresh token is stored as a secret, which breaks on conditional
 access and idle expiry. `eval.yml` runs as that user from the `EVAL_TOKEN_CACHE` secret (Jane's sign-in cache in this test tenant)
-and the variables `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME`, which point at the e2e agent whose site holds
-the sample corpus. They are set; the workflow has not been run yet.
+and the variables `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME`, which point at the dev agent whose site holds
+the sample corpus. They are set, and the workflow has passed once (see Verification).
 
 ## Configuration
 
@@ -359,7 +359,7 @@ Set in `.env` (see `.env.example`).
 | GitHub Actions | `ci.yml` green. `deploy.yml` ran on the harness agent as the app identity: OIDC sign-in, clone, apply, "No local changes detected" (idempotent), publish. `pac` 2.16.1 failed twice while parsing the publish status ("Invalid response format") although the bot record showed the publish had succeeded, then passed on a third run; a verification step handles that error (unit-tested with fake commands, not yet hit live). The step that prints `pac`'s own log on failure found it |
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | No per-agent telemetry; environment-level preview documented, not tried (see Observability) |
-| `eval.yml` | Secret and variables set (licensed test user); first CI run pending |
+| `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
 | New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 
 ## Troubleshooting

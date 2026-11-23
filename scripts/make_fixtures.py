@@ -23,7 +23,7 @@ FIXTURES = {
     ),
     "control.docx": (
         "OL Unlabeled Control Document",
-        "The unlabeled control code is TUNDRA-58.",
+        "The unlabeled control code is MAPLE-82.",
     ),
     "site-restricted.docx": (
         "OL Site-Restricted Test Document",

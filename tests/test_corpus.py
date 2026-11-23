@@ -66,5 +66,5 @@ def test_fixtures_carry_their_codes(tmp_path, monkeypatch):
     monkeypatch.setattr("sys.argv", ["make_fixtures.py", str(tmp_path)])
     make_fixtures.main()
     assert "HELIOS-31" in docx_text(tmp_path / "restricted.docx")
-    assert "TUNDRA-58" in docx_text(tmp_path / "control.docx")
+    assert "MAPLE-82" in docx_text(tmp_path / "control.docx")
     assert "KESTREL-19" in docx_text(tmp_path / "site-restricted.docx")

@@ -51,6 +51,31 @@ def test_tables_emoji_and_blockquotes_are_flattened_to_prose():
     assert hhem.clean_answer(raw) == "Steps: Requirement What it says Where The quarantine area Important: report it."
 
 
+def test_claims_are_split_per_sentence_and_list_item_with_lead_ins_and_labels_dropped():
+    raw = ("Based on the **Guide** [1], here is the answer:\n\n### Steps\n\n"
+           "1. **Stop the machine** — Do not operate it. Notify maintenance.\n"
+           "2. **Use absorbent pads** — Contain the spill.\n\nYes.")
+    assert hhem.split_claims(raw) == ["Stop the machine — Do not operate it.", "Notify maintenance.",
+                                      "Use absorbent pads — Contain the spill."]
+
+
+def test_table_rows_become_claims_and_separator_rows_do_not():
+    raw = "| Where | What |\n|---|---|\n| Place | Rejected materials go to the designated quarantine area |"
+    assert hhem.split_claims(raw) == ["Place Rejected materials go to the designated quarantine area"]
+
+
+def test_claim_scores_are_averaged_and_the_weak_ones_reported():
+    model = FakeModel(lambda p, h: 0.1 if "tears" in h else 0.9)
+    out = hhem.score_claims("premise", "Inspect the belt daily. Look for tears and fraying. Check the guards too.", model)
+    assert out["score"] == 0.6333 and out["min_claim"] == 0.1 and out["supported_share"] == 0.667
+    assert [c["score"] for c in out["claims"]] == [0.9, 0.1, 0.9]
+
+
+def test_an_answer_with_no_extractable_claim_is_scored_whole():
+    out = hhem.score_claims("premise", "Yes.", FakeModel(lambda p, h: 0.7))
+    assert out["score"] == 0.7 and len(out["claims"]) == 1
+
+
 def test_the_model_is_not_loaded_for_an_empty_batch():
     assert hhem.score([]) == []
 
@@ -99,8 +124,10 @@ CORPUS = {"loto": "Apply a lock and a tag.", "other": "Unrelated."}
 
 def test_hhem_results_attach_a_score_and_the_premise_documents_to_answered_cases_only():
     results = [result("a"), result("b", answer="", error="empty answer")]
+    results[0]["answer"] = "Apply a lock and a tag. Verify zero energy first."
     ev.hhem_results(results, CASES, CORPUS, FakeModel(lambda p, h: 0.8))
-    assert results[0]["hhem"] == {"score": 0.8, "consistent": True, "premise_docs": ["loto"]}
+    assert results[0]["hhem"]["score"] == 0.8 and results[0]["hhem"]["supported_share"] == 1.0
+    assert results[0]["hhem"]["premise_docs"] == ["loto"] and len(results[0]["hhem"]["weakest_claims"]) == 2
     assert "hhem" not in results[1]
 
 
@@ -113,21 +140,27 @@ def test_an_hhem_failure_is_recorded_on_the_case():
     assert "out of memory" in results[0]["hhem"]["error"]
 
 
-def scored(id_, value):
+def scored(id_, value, share=None):
     r = result(id_)
-    r.update(latency_ms=1, keyword_recall=1.0, citation_recall=1.0, hhem={"score": value})
+    r.update(latency_ms=1, keyword_recall=1.0, citation_recall=1.0,
+             hhem={"score": value, "supported_share": value if share is None else share})
     return r
 
 
-def test_summary_gates_on_hhem_mean_and_on_the_worst_single_answer():
+def test_summary_gates_on_the_hhem_mean_and_reports_the_rest():
     good = ev.summarize([scored("a", 0.9), scored("b", 0.7)], hhem_selftest={"passed": True})
-    assert good["metrics"]["hhem_mean"] == 0.8 and good["metrics"]["hhem_min"] == 0.7 and good["passed"]
+    assert good["metrics"]["hhem_mean"] == 0.8 and good["metrics"]["hhem_min_answer"] == 0.7 and good["passed"]
+    assert good["metrics"]["hhem_supported_claims"] == 0.8
     below = ev.HHEM_THRESHOLDS["hhem_mean"] - 0.05
-    low_mean = ev.summarize([scored("a", below), scored("b", below)], hhem_selftest={"passed": True})
-    assert not low_mean["checks"]["hhem_mean"]
-    fabricated = ev.HHEM_THRESHOLDS["hhem_min"] / 2
-    one_bad = ev.summarize([scored(str(i), 1.0) for i in range(9)] + [scored("x", fabricated)], hhem_selftest={"passed": True})
-    assert one_bad["checks"]["hhem_mean"] and not one_bad["checks"]["hhem_min"] and not one_bad["passed"]
+    low = ev.summarize([scored("a", below), scored("b", below)], hhem_selftest={"passed": True})
+    assert not low["checks"]["hhem_mean"] and not low["passed"]
+
+
+def test_one_poor_answer_does_not_fail_the_run_because_single_answers_are_too_noisy_to_gate_on():
+    results = [scored(str(i), 0.9) for i in range(9)] + [scored("x", 0.02)]
+    summary = ev.summarize(results, hhem_selftest={"passed": True})
+    assert summary["metrics"]["hhem_min_answer"] == 0.02 and summary["passed"]
+    assert "hhem_min" not in summary["checks"]
 
 
 def test_an_hhem_error_or_failed_selftest_fails_the_run():

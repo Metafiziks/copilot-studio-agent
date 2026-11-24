@@ -91,9 +91,10 @@ def split_claims(text: str) -> list[str]:
         line = clean_answer(line)
         for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", line):
             sentence = sentence.strip()
-            if len(sentence.split()) < 4:                          # headings, labels, "Yes."
+            words = len(sentence.split())
+            if words < 2:                                          # list numbers, "Yes."
                 continue
-            if META_LEAD.match(sentence) and sentence.endswith(":"):   # "Based on the guide, here is the answer:"
+            if sentence.endswith(":") and (words <= 6 or META_LEAD.match(sentence)):   # labels and lead-ins
                 continue
             claims.append(sentence)
     return claims
@@ -135,7 +136,7 @@ def selftest(model=None) -> dict:
     """
     premise = judge.SELFTEST_DOC[1]
     kinds = list(judge.SELFTEST_ANSWERS)
-    scores = dict(zip(kinds, score([(premise, judge.SELFTEST_ANSWERS[k]) for k in kinds], model)))
+    scores = {k: score_claims(premise, judge.SELFTEST_ANSWERS[k], model)["score"] for k in kinds}
     checks = {
         "faithful_answer_is_consistent": scores["faithful"] >= CONSISTENT_AT,
         "invented_answer_is_hallucinated": scores["unfaithful"] < CONSISTENT_AT,

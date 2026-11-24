@@ -22,8 +22,9 @@ Deterministic metrics, computed here from real agent replies:
 Faithfulness and quality, scored against the source documents in docs/ (Copilot Studio's built-in Agent
 Evaluation rejects this agent type, README > Evaluations, so the scoring lives here):
 
-  HHEM mean       >= 0.45   scripts/hhem.py: probability each answer is consistent with its source documents
-  HHEM min        >= 0.08   no single answer may look fabricated, whatever the mean. Needs PyTorch, no key
+  HHEM mean       >= 0.50   scripts/hhem.py: each claim in an answer scored against its source documents, averaged.
+                            A trend metric (strict about paraphrase); reports the share of supported claims. Needs
+                            PyTorch, no key
   Judge faithfulness >= 0.85, relevance >= 0.85, completeness >= 0.60, min faithfulness >= 0.50
                             scripts/judge.py: an LLM judge, active only when JUDGE_API_KEY is set
   Self-tests                before scoring, each scorer must rate a known-good, a known-invented and a
@@ -47,10 +48,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# Calibrated on two CI runs against the dev agent: mean 0.51 and 0.59, worst single answer 0.15 and 0.16, and
-# an invented answer in the self-test scores ~0.03. The mean is the steady signal (single answers swing run to
-# run because the agent words them differently); the floor only catches an outright fabrication.
-HHEM_THRESHOLDS = {"hhem_mean": 0.45, "hhem_min": 0.08}
+# Calibrated on three CI runs against the dev agent: the claim-level mean was 0.67, 0.65 and 0.61. HHEM is strict:
+# it flags any claim the source does not state outright, benign paraphrase included, so it is a TREND metric
+# (does the agent stay close to the documents?) and there is deliberately no per-answer floor: the same correct
+# answer scored 0.31, 0.16 and 0.07 across runs. Telling harmless paraphrase from fabrication is the LLM judge's job.
+HHEM_THRESHOLDS = {"hhem_mean": 0.50}
 JUDGE_THRESHOLDS = {"judge_faithfulness": 0.85, "judge_relevance": 0.85, "judge_completeness": 0.60,
                     "judge_min_faithfulness": 0.50}
 THRESHOLDS = {"keyword_recall": 0.65, "citation_recall": 0.60, "p95_latency_ms": 45_000, "memory_recall": 1.0,
@@ -153,10 +155,12 @@ def summarize(results: list[dict], thresholds: dict = THRESHOLDS, memory_results
     if hhemed:
         hhem_errors = [r["id"] for r in hhemed if "error" in r["hhem"]]
         scored = [r["hhem"]["score"] for r in hhemed if "error" not in r["hhem"]]
+        shares = [r["hhem"]["supported_share"] for r in hhemed if "error" not in r["hhem"] and "supported_share" in r["hhem"]]
         metrics["hhem_mean"] = round(sum(scored) / len(scored), 3) if scored else 0.0
-        metrics["hhem_min"] = min(scored, default=0.0)
+        metrics["hhem_min_answer"] = min(scored, default=0.0)                # reported, not gated: too noisy
+        if shares:
+            metrics["hhem_supported_claims"] = round(sum(shares) / len(shares), 3)
         checks["hhem_mean"] = bool(scored) and metrics["hhem_mean"] >= thresholds["hhem_mean"]
-        checks["hhem_min"] = bool(scored) and metrics["hhem_min"] >= thresholds["hhem_min"]
         checks["no_hhem_errors"] = not hhem_errors
     if hhem_selftest is not None:
         checks["hhem_selftest"] = bool(hhem_selftest.get("passed"))
@@ -190,7 +194,7 @@ def select_memory_cases(cases: list[dict]) -> list[dict]:
 # --- judging -------------------------------------------------------------------------------------
 
 def hhem_results(results: list[dict], cases: list[dict], corpus: dict[str, str], model=None) -> None:
-    """Attach an HHEM consistency score to every answered result, in place. A failure is recorded, not hidden."""
+    """Attach a claim-level HHEM score to every answered result, in place. A failure is recorded, not hidden."""
     import hhem
 
     by_id = {c["id"]: c for c in cases}
@@ -199,11 +203,13 @@ def hhem_results(results: list[dict], cases: list[dict], corpus: dict[str, str],
             continue                                  # no answer to score; the case already failed
         documents = hhem.premise_documents(corpus, result.get("cited", []), by_id[result["id"]].get("expected_sources", []))
         try:
-            value = hhem.score([(hhem.build_premise(documents), result["answer"])], model)[0]
-            result["hhem"] = {"score": value, "consistent": value >= hhem.CONSISTENT_AT,
-                              "premise_docs": [name for name, _ in documents]}
-            print(f"[hhem {i}/{len(results)}] {result['id']}: consistency={value:.2f}", file=sys.stderr, flush=True)
-        except Exception as exc:  # noqa: BLE001 - one bad pair must not hide the others
+            claims = hhem.score_claims(hhem.build_premise(documents), result["answer"], model)
+            result["hhem"] = {"score": claims["score"], "supported_share": claims["supported_share"],
+                              "premise_docs": [name for name, _ in documents],
+                              "weakest_claims": sorted(claims["claims"], key=lambda c: c["score"])[:3]}
+            print(f"[hhem {i}/{len(results)}] {result['id']}: consistency={claims['score']:.2f} "
+                  f"supported={claims['supported_share']:.0%} of {len(claims['claims'])} claims", file=sys.stderr, flush=True)
+        except Exception as exc:  # noqa: BLE001 - one bad answer must not hide the others
             result["hhem"] = {"error": f"{type(exc).__name__}: {exc}"}
             print(f"[hhem {i}/{len(results)}] {result['id']}: HHEM ERROR {exc}", file=sys.stderr, flush=True)
 

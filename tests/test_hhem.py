@@ -46,6 +46,11 @@ def test_scores_are_rounded_probabilities_and_the_answer_is_cleaned_first():
     assert hhem.score([], model) == []
 
 
+def test_tables_emoji_and_blockquotes_are_flattened_to_prose():
+    raw = "Steps:\n\n| Requirement | What it says |\n|---|---|\n| **Where** | The quarantine area |\n\n> \u26a0\ufe0f **Important:** report it."
+    assert hhem.clean_answer(raw) == "Steps: Requirement What it says Where The quarantine area Important: report it."
+
+
 def test_the_model_is_not_loaded_for_an_empty_batch():
     assert hhem.score([]) == []
 

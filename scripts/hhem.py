@@ -64,10 +64,13 @@ def load_model():
 
 
 def clean_answer(text: str) -> str:
-    """The answer as plain prose: markdown emphasis, bullets and citation markers add noise, not claims."""
+    """The answer as plain prose: markdown, tables, emoji and citation markers add noise, not claims."""
     text = re.sub(r"\[\d+\]|\[[^\]]*\]\(https?://[^)]*\)|https?://\S+", "", text)
+    text = re.sub(r"^\s*\|?[\s:|-]*-{3,}[\s:|-]*\|?\s*$", "", text, flags=re.MULTILINE)      # table separator rows
+    text = text.replace("|", " ")                                                          # table cell borders
+    text = re.sub(r"[\u2190-\u2BFF\U0001F000-\U0001FAFF\uFE0F\u200d]", "", text)            # arrows, symbols, emoji
     text = re.sub(r"[*_`#>]+", "", text)
-    text = re.sub(r"^\s*[-•]\s+", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^\s*[-\u2022]\s+", "", text, flags=re.MULTILINE)
     return re.sub(r"\s+", " ", text).strip()
 
 

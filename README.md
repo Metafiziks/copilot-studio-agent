@@ -12,8 +12,11 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > per-user restriction at site and document level (two users, side by side), CI and OIDC deploy, and a
 > **passing scored eval** (keyword recall 0.99, citation recall 1.00, p95 25.7 s, memory recall 1.00, run
 > as a licensed user), and **telemetry** (environment-level export to Application Insights, verified).
-> **Not done:** the built-in LLM-judged graders and HHEM, and anomaly detection. **Two things will silently break it:** a user without a SharePoint-bearing license, and a
-> brand-new SharePoint site (see Troubleshooting). Each section says exactly where it stands.
+> **Tried and not possible for this agent type:** Copilot Studio's built-in LLM-judged graders. A run
+> returned *Error* for all 12 cases without reaching the agent, and Microsoft documents the feature only for
+> standard-harness agents (see Evaluations). **Not built:** HHEM faithfulness scoring and anomaly detection.
+> **Two things will silently break it:** a user without a SharePoint-bearing license, and a brand-new
+> SharePoint site (see Troubleshooting). Each section says exactly where it stands.
 
 ## Architecture
 
@@ -148,7 +151,7 @@ The cause was not the agent being wrong. Two checks had been misleading:
   successfully 12.5 hours later. A Microsoft Q&A thread reports the same error text, with no answer. The corpus therefore runs in the established dev
   site, uploaded flat (`--with-corpus`); sub-folders were not re-tested after the site became usable.
 
-**LLM-judged metrics** (relevance, groundedness) come from Copilot Studio's built-in
+**LLM-judged metrics** (relevance, groundedness) would come from Copilot Studio's built-in
 [Agent Evaluation](https://learn.microsoft.com/microsoft-copilot-studio/analytics-agent-evaluation-create).
 Export the cases for it:
 

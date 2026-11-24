@@ -122,10 +122,12 @@ def scored(id_, value):
 def test_summary_gates_on_hhem_mean_and_on_the_worst_single_answer():
     good = ev.summarize([scored("a", 0.9), scored("b", 0.7)], hhem_selftest={"passed": True})
     assert good["metrics"]["hhem_mean"] == 0.8 and good["metrics"]["hhem_min"] == 0.7 and good["passed"]
-    low_mean = ev.summarize([scored("a", 0.5), scored("b", 0.5)], hhem_selftest={"passed": True})
+    below = ev.HHEM_THRESHOLDS["hhem_mean"] - 0.05
+    low_mean = ev.summarize([scored("a", below), scored("b", below)], hhem_selftest={"passed": True})
     assert not low_mean["checks"]["hhem_mean"]
-    one_bad = ev.summarize([scored(str(i), 1.0) for i in range(9)] + [scored("x", 0.1)], hhem_selftest={"passed": True})
-    assert one_bad["metrics"]["hhem_mean"] >= 0.6 and not one_bad["checks"]["hhem_min"] and not one_bad["passed"]
+    fabricated = ev.HHEM_THRESHOLDS["hhem_min"] / 2
+    one_bad = ev.summarize([scored(str(i), 1.0) for i in range(9)] + [scored("x", fabricated)], hhem_selftest={"passed": True})
+    assert one_bad["checks"]["hhem_mean"] and not one_bad["checks"]["hhem_min"] and not one_bad["passed"]
 
 
 def test_an_hhem_error_or_failed_selftest_fails_the_run():

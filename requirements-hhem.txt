@@ -1,3 +1,6 @@
-torch
-transformers
-sentencepiece
+# Faithfulness scoring (scripts/hhem.py). Install with the CPU wheel index, which is far smaller than the default:
+#   pip install -r requirements-hhem.txt --extra-index-url https://download.pytorch.org/whl/cpu
+# Versions are the ones CI ran the eval with; bump them deliberately and re-run the "Scorer self-tests" workflow.
+torch==2.15.0
+transformers==5.24.0
+sentencepiece==0.2.3

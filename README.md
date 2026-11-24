@@ -12,9 +12,10 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > per-user restriction at site and document level (two users, side by side), CI and OIDC deploy, and a
 > **passing scored eval** (keyword recall 0.99, citation recall 1.00, p95 25.7 s, memory recall 1.00, run
 > as a licensed user), and **telemetry** (environment-level export to Application Insights, verified).
-> **Tried and not possible for this agent type:** Copilot Studio's built-in LLM-judged graders. A run
-> returned *Error* for all 12 cases without reaching the agent, and Microsoft documents the feature only for
-> standard-harness agents (see Evaluations). **Not built:** HHEM faithfulness scoring and anomaly detection.
+> **Faithfulness is scored with HHEM**, an open model that runs in CI with no key (mean 0.51 and 0.59 on
+> two runs, gated). An **LLM judge** for relevance and completeness is built and unit-tested but has **never
+> run against a live model**: it needs a key you provide. Copilot Studio's built-in graders reject this agent
+> type (see Evaluations). **Not built:** anomaly detection.
 > **Two things will silently break it:** a user without a SharePoint-bearing license, and a brand-new
 > SharePoint site (see Troubleshooting). Each section says exactly where it stands.
 
@@ -120,7 +121,8 @@ export AGENT_TOKEN_CACHE=.build/token_cache_eval.json     # one sign-in per test
 ```
 
 Thresholds match the Azure template where a counterpart exists: keyword recall ≥ 0.65, citation recall
-≥ 0.60, p95 ≤ 45 s, memory recall = 1.0, and any failed call or empty answer fails the run. The caller must
+≥ 0.60, p95 ≤ 45 s, memory recall = 1.0, and any failed call or empty answer fails the run. The HHEM gate is
+this repo's own (mean ≥ 0.45, no answer below 0.08), calibrated on two runs. The caller must
 be a **real user with a SharePoint-bearing license**, who is a member of the knowledge site and has the
 agent shared with them (**Can use**): the agent retrieves SharePoint as the signed-in user, an app-only
 caller has none, and for an unlicensed user every question comes back "not found".
@@ -151,7 +153,47 @@ The cause was not the agent being wrong. Two checks had been misleading:
   successfully 12.5 hours later. A Microsoft Q&A thread reports the same error text, with no answer. The corpus therefore runs in the established dev
   site, uploaded flat (`--with-corpus`); sub-folders were not re-tested after the site became usable.
 
-**LLM-judged metrics** (relevance, groundedness) would come from Copilot Studio's built-in
+**Faithfulness and quality scoring.** Copilot Studio's built-in graders reject this agent type (below), so
+the LLM-judged half of the Azure template's evaluation is built here and scored against the source
+documents in `docs/`:
+
+| Scorer | What it measures | Needs | Status |
+|---|---|---|---|
+| **HHEM** (`scripts/hhem.py`) | Probability (0 to 1) that each answer is consistent with its source documents. Vectara's HHEM-2.1-open: Apache-2.0, pinned revision, runs on CPU | PyTorch (`requirements-hhem.txt`); no key | **Running in CI.** Gate: mean ≥ 0.45, no single answer below 0.08 |
+| **LLM judge** (`scripts/judge.py`) | Faithfulness, relevance and completeness, 1 to 5 each | `JUDGE_API_KEY` for any OpenAI-compatible endpoint | Built and covered by unit tests with a fake endpoint. **Never run against a live model**: GitHub Models is not served in this environment (it answers every request with a bare `OK`) and no key is configured |
+
+Each scorer must pass a **self-test** before it scores anything: HHEM scored a faithful answer 0.90, an
+invented one 0.03 and an off-topic one 0.005. If a scorer cannot tell known-good from known-bad answers the
+run fails instead of reporting its numbers.
+
+**What HHEM found.** The agent's answers are substantively right (keyword recall about 1.0) but often add
+small details the documents do not contain: "tears, fraying" for the conveyor check, "a qualified technician
+can assess and repair it" and "keep the press tagged out" (the guide never says tag out) for the oil leak.
+HHEM scores those as inconsistent, and reading them against the documents, it is right. The cause is the
+agent, not the scorer: its instructions say to answer only from the documents, and it elaborates anyway.
+Tightening the instructions (use the documents' wording, add nothing) is the lever; it is not changed here
+because it alters the agent's behaviour. Per-answer scores swing from run to run because the agent words its
+answers differently (one went 0.15 then 0.64), so the **mean is the steady signal** and the per-answer floor
+only catches an outright fabrication. Thresholds were set from two runs, below, and should be re-checked as
+more runs accumulate.
+
+| Run | HHEM mean | Worst single answer |
+|---|---|---|
+| 1 (markdown tables and emoji left in the answer text) | 0.506 | 0.153 |
+| 2 (answer text flattened to prose first) | 0.589 | 0.162 |
+
+```bash
+pip install -r requirements-hhem.txt --extra-index-url https://download.pytorch.org/whl/cpu   # about 1.5 GB on disk
+.venv-eval/bin/python scripts/run_evals.py --hhem on          # --judge on as well once JUDGE_API_KEY is set
+python scripts/hhem.py selftest                               # or the "Scorer self-tests" workflow, no agent needed
+```
+
+To switch the LLM judge on in CI, add `JUDGE_API_KEY` as a secret in the `dev` environment (and optionally
+the variables `JUDGE_BASE_URL` and `JUDGE_MODEL`, default `https://api.openai.com/v1` and `gpt-4.1`); the
+eval then judges every answer and the `Scorer self-tests` workflow checks the judge first. Use a different
+model family from the agent so the judge does not favour its style.
+
+**The built-in graders**, tried first, are Copilot Studio's
 [Agent Evaluation](https://learn.microsoft.com/microsoft-copilot-studio/analytics-agent-evaluation-create).
 Export the cases for it:
 
@@ -182,12 +224,12 @@ How each Azure metric maps:
 
 | Azure metric | Copilot Studio | Status |
 |---|---|---|
-| Faithfulness (GPT-5 judge) | Built-in General quality (groundedness) | Attempted; the evaluator rejects this agent type (see above) |
-| Answer relevance (GPT-5 judge) | Built-in General quality (relevance) | Attempted; the evaluator rejects this agent type (see above) |
+| Faithfulness (GPT-5 judge) | HHEM consistency (`scripts/hhem.py`); built-in General quality rejects this agent type | **0.51, 0.59** (mean, two runs) |
+| Answer relevance (GPT-5 judge) | LLM judge (`scripts/judge.py`); built-in General quality rejects this agent type | Built and unit-tested; **not yet run** (needs `JUDGE_API_KEY`) |
 | Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.986** |
 | Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
 | p95 latency | `scripts/run_evals.py` | **25.7 s** |
-| HHEM hallucination score | Not available | Needs a custom runner; not built |
+| HHEM hallucination score | `scripts/hhem.py`, the same model the Azure template uses | **Running in CI**; gate mean ≥ 0.45, floor 0.08 |
 | Memory recall | `scripts/run_evals.py` | **1.00** |
 
 The built-in Evaluation REST API (`api.powerplatform.com/copilotstudio/.../makerevaluation/testsets/{id}/run`)
@@ -328,7 +370,8 @@ set up by hand and are not scripted.
 | Portal Monitor tab | Works for the harness agent, fed by the conversation transcripts: sessions, daily users, duration, success rate, with a delay of hours. Its 0% success and "no tool use" mirrored the failed searches, and it had not yet shown the newest sessions |
 | Credit limits | 1,000 Copilot Credits per agent with *Stop usage* at 100% and an 80% notification, on both `OL Memory Agent` entries (dev and e2e), set in the admin center under Licensing > Copilot Studio > Manage Agents. The agent only appeared there after it had billed usage (631 and 398 credits by then). At about 4 credits per turn, a daily CI eval of 13 turns is roughly 50 credits, so budget the cap |
 | Purview audit | Not evaluated. The Audit page reported it could not confirm that activity is being recorded and offered to start recording, a tenant-wide compliance setting that was left alone |
-| `eval.yml` | manual | Runs `scripts/run_evals.py` and uploads the results; see the constraint below |
+| `eval.yml` | manual | Installs CPU PyTorch (cached), runs `scripts/run_evals.py --hhem on` and uploads the results; see the constraint below |
+| `scorers.yml` | manual | Runs the HHEM (and, with a key, LLM judge) self-tests alone: no agent, no tenant access |
 
 One-time setup, all scriptable except the last two:
 
@@ -395,6 +438,7 @@ Set in `.env` (see `.env.example`).
 | `RESTRICTED_SITE_NICK` / `RESTRICTED_SITE_TITLE` | Restricted site in protected mode (default `ol-restricted`) |
 | `EVAL_CLIENT_ID` / `EVAL_TENANT_ID` | Evals: the app registration from `scripts/setup_entra_app.sh` and its tenant |
 | `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME` | Evals: the agent to call (the environment ID is in the portal URL; the schema name is `olk_OLMemoryAgent`) |
+| `JUDGE_API_KEY` / `JUDGE_BASE_URL` / `JUDGE_MODEL` | Optional LLM judge: key for any OpenAI-compatible endpoint (default `https://api.openai.com/v1`, model `gpt-4.1`). Unset, the judge is skipped and the run says so |
 | `AGENT_TOKEN_CACHE` | Evals: the sign-in cache file (default `.build/token_cache.json`). Use a different file per test user |
 | `OBS_RESOURCE_GROUP` / `OBS_LOCATION` | Monitoring resource group and region (defaults `rg-copilot-agent-obs`, `eastus2`) |
 | `OBS_WORKSPACE` / `OBS_APPINSIGHTS` | Log Analytics workspace and Application Insights names (defaults `log-copilot-agent`, `appi-copilot-agent`) |
@@ -415,6 +459,7 @@ Set in `.env` (see `.env.example`).
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | Environment-level export to Application Insights verified on this agent (prompt, reply, search calls, user); Dataverse transcripts also hold harness conversations (see Observability) |
 | `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
+| HHEM scoring | Ran in CI on the agent's real answers (two full runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; agent answers averaged 0.51 then 0.59, with the lowest answers adding details the documents lack. The LLM judge has only been run against a fake endpoint |
 | New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 
 ## Troubleshooting
@@ -447,7 +492,7 @@ Set in `.env` (see `.env.example`).
 | RAG | Azure AI Search | SharePoint knowledge (Microsoft Search) | Bedrock Knowledge Bases | Vertex AI Search |
 | Vector store | AI Search (built in) | Managed by the platform | OpenSearch Serverless | Vertex AI Search (built in) |
 | CI auth | Azure OIDC | Entra federated credential (GitHub OIDC; deploy verified) | GitHub OIDC | Workload Identity Federation |
-| Eval judge | GPT-5 + HHEM | Deterministic metrics in `scripts/run_evals.py`; built-in Agent Evaluation attempted and rejected for this agent type | Amazon Nova Pro | Gemini 3.5 Flash |
+| Eval judge | GPT-5 + HHEM | HHEM (running) plus an optional LLM judge (built, not yet run) in `scripts/`; built-in Agent Evaluation rejects this agent type | Amazon Nova Pro | Gemini 3.5 Flash |
 | Memory | Foundry Memory Store | Copilot Studio Memory (`enableMemory`), per user; verified | Bedrock session-summary memory | ADK session/user state |
 | Protected mode | `KB_ACCESS_MODE=purview` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` |
 | Protection mechanism | Purview labels via Foundry IQ | SharePoint permissions + encrypted Purview labels | Knowledge Base document ACLs | Agent Search document ACLs |

@@ -254,3 +254,30 @@ def test_a_judge_error_fails_the_run():
 def test_a_failed_selftest_fails_the_run_even_if_nothing_was_judged():
     summary = ev.summarize([answered("a")], judge_selftest={"passed": False, "error": "no"})
     assert not summary["checks"]["judge_selftest"] and not summary["passed"]
+
+
+# --- rescoring saved answers -------------------------------------------------------------------------
+
+def _answers_file(tmp_path):
+    rows = [{"run": run, "id": f"q{i}", "question": "q?", "answer": "a" * 10, "cited": [], "expected_sources": []}
+            for run in ("old", "new") for i in range(2)]
+    path = tmp_path / "answers.json"
+    path.write_text(json.dumps(rows))
+    return path
+
+
+def test_rescore_reports_each_run_and_exits_zero(tmp_path):
+    lines = []
+    transport = scripted(OK(verdict_json(f=4, r=5, c=3, claims=["made up"])))
+    code = judge.rescore(str(_answers_file(tmp_path)), CFG, docs_dir=tmp_path, transport=transport, out=lines.append)
+    text = "\n".join(lines)
+    assert code == 0 and len(transport.calls) == 4
+    assert "old (n=2): faithfulness 0.750 | relevance 1.000 | completeness 0.500" in text
+    assert "new (n=2)" in text and "made up" in text and "4 judged, 0 errors" in text
+
+
+def test_rescore_counts_judge_errors_and_exits_non_zero(tmp_path):
+    lines = []
+    code = judge.rescore(str(_answers_file(tmp_path)), CFG, docs_dir=tmp_path,
+                         transport=scripted((401, {}, "bad key")), sleep=lambda s: None, out=lines.append)
+    assert code == 2 and "0 judged, 4 errors" in "\n".join(lines)

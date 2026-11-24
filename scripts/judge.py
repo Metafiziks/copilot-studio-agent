@@ -27,6 +27,7 @@ credential, and nothing is sent anywhere until JUDGE_API_KEY is set):
 Usage:
   python scripts/judge.py selftest                       # prove the judge tells good answers from bad ones
   python scripts/judge.py score "question" "answer"      # judge one answer against docs/
+  python scripts/judge.py rescore [answers.json]         # judge saved agent answers, per run, no agent credits
 """
 
 import argparse
@@ -235,6 +236,40 @@ def selftest(cfg: dict, transport=http_transport, sleep=time.sleep) -> dict:
     return {"passed": all(checks.values()), "checks": checks, "scores": scores, "model": cfg["model"]}
 
 
+def rescore(path: str, cfg: dict, docs_dir: Path = ROOT / "docs", transport=http_transport, sleep=time.sleep,
+            out=print) -> int:
+    """Judge saved answers (tests/fixtures/agent_answers.json) and print the mean of each dimension per run.
+
+    Costs no agent credits: one judge call per saved answer. A failed call is counted and shown, never scored.
+    """
+    import statistics
+
+    corpus = load_corpus(docs_dir)
+    rows = json.loads(Path(path).read_text(encoding="utf-8"))
+    results, errors = [], 0
+    for row in rows:
+        documents = select_context(corpus, row["cited"], row["expected_sources"])
+        try:
+            verdict = judge_answer(row["question"], row["answer"], documents, cfg, transport, sleep)
+        except JudgeError as exc:
+            errors += 1
+            out(f"{row['run']} {row['id'][:44]:44} JUDGE ERROR: {exc}")
+            continue
+        results.append({"run": row["run"], "id": row["id"], "chars": len(row["answer"]), **verdict})
+        out(f"{row['run']} {row['id'][:44]:44} faithfulness={verdict['scores']['faithfulness']} "
+            f"relevance={verdict['scores']['relevance']} completeness={verdict['scores']['completeness']}")
+    for run in dict.fromkeys(r["run"] for r in results):
+        sel = [r for r in results if r["run"] == run]
+        means = " | ".join(f"{d} {statistics.mean(r[d] for r in sel):.3f}" for d in DIMENSIONS)
+        out(f"{run} (n={len(sel)}): {means} | worst faithfulness {min(r['faithfulness'] for r in sel):.2f} "
+            f"| answer length {statistics.mean(r['chars'] for r in sel):.0f} chars")
+    out("\nanswers with unsupported claims:")
+    for r in sorted((r for r in results if r["unsupported_claims"]), key=lambda r: r["faithfulness"])[:10]:
+        out(f"  {r['faithfulness']:.2f} {r['run']} [{r['id'][:30]}] {r['unsupported_claims'][0][:150]}")
+    out(f"\njudge model {cfg['model']}; {len(results)} judged, {errors} errors")
+    return 2 if errors else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
@@ -243,6 +278,8 @@ def main() -> int:
     score.add_argument("question")
     score.add_argument("answer")
     score.add_argument("--docs", type=Path, default=ROOT / "docs")
+    again = sub.add_parser("rescore", help="judge saved agent answers, per run (no agent credits)")
+    again.add_argument("path", nargs="?", default="tests/fixtures/agent_answers.json")
     args = parser.parse_args()
     cfg = resolve_config()
     if not cfg:
@@ -252,6 +289,8 @@ def main() -> int:
             result = selftest(cfg)
             print(json.dumps(result, indent=2))
             return 0 if result["passed"] else 1
+        if args.command == "rescore":
+            return rescore(args.path, cfg)
         corpus = load_corpus(args.docs)
         print(json.dumps(judge_answer(args.question, args.answer, select_context(corpus, [], []), cfg), indent=2))
         return 0

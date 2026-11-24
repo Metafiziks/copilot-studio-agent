@@ -47,3 +47,7 @@ jobs:
       - name: LLM judge self-test (only when a judge key is configured)
         if: env.JUDGE_API_KEY != ''
         run: python scripts/judge.py selftest
+
+      - name: LLM judge on the saved agent answers (only when a judge key is configured)
+        if: env.JUDGE_API_KEY != ''
+        run: python scripts/judge.py rescore tests/fixtures/agent_answers.json

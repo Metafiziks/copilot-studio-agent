@@ -12,8 +12,8 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > per-user restriction at site and document level (two users, side by side), CI and OIDC deploy, and a
 > **passing scored eval** (keyword recall 0.99, citation recall 1.00, p95 25.7 s, memory recall 1.00, run
 > as a licensed user), and **telemetry** (environment-level export to Application Insights, verified).
-> **Faithfulness is scored with HHEM**, an open model that runs in CI with no key (mean 0.51 and 0.59 on
-> two runs, gated). An **LLM judge** for relevance and completeness is built and unit-tested but has **never
+> **Faithfulness is scored with HHEM**, an open model that runs in CI with no key (claim-level mean 0.68,
+> 0.65 and 0.61 on three full runs, gated at 0.50; it is a strict trend metric, see Evaluations). An **LLM judge** for relevance and completeness is built and unit-tested but has **never
 > run against a live model**: it needs a key you provide. Copilot Studio's built-in graders reject this agent
 > type (see Evaluations). **Not built:** anomaly detection.
 > **Two things will silently break it:** a user without a SharePoint-bearing license, and a brand-new
@@ -122,7 +122,7 @@ export AGENT_TOKEN_CACHE=.build/token_cache_eval.json     # one sign-in per test
 
 Thresholds match the Azure template where a counterpart exists: keyword recall ≥ 0.65, citation recall
 ≥ 0.60, p95 ≤ 45 s, memory recall = 1.0, and any failed call or empty answer fails the run. The HHEM gate is
-this repo's own (mean ≥ 0.45, no answer below 0.08), calibrated on two runs. The caller must
+this repo's own (claim-level mean ≥ 0.50), calibrated on three runs. The caller must
 be a **real user with a SharePoint-bearing license**, who is a member of the knowledge site and has the
 agent shared with them (**Can use**): the agent retrieves SharePoint as the signed-in user, an app-only
 caller has none, and for an unlicensed user every question comes back "not found".
@@ -159,28 +159,39 @@ documents in `docs/`:
 
 | Scorer | What it measures | Needs | Status |
 |---|---|---|---|
-| **HHEM** (`scripts/hhem.py`) | Probability (0 to 1) that each answer is consistent with its source documents. Vectara's HHEM-2.1-open: Apache-2.0, pinned revision, runs on CPU | PyTorch (`requirements-hhem.txt`); no key | **Running in CI.** Gate: mean ≥ 0.45, no single answer below 0.08 |
+| **HHEM** (`scripts/hhem.py`) | Probability (0 to 1) that each claim in an answer is consistent with its source documents, averaged. Vectara's HHEM-2.1-open: Apache-2.0, pinned revision, runs on CPU | PyTorch (`requirements-hhem.txt`); no key | **Running in CI.** Gate: claim-level mean ≥ 0.50; the worst single answer is reported, not gated |
 | **LLM judge** (`scripts/judge.py`) | Faithfulness, relevance and completeness, 1 to 5 each | `JUDGE_API_KEY` for any OpenAI-compatible endpoint | Built and covered by unit tests with a fake endpoint. **Never run against a live model**: GitHub Models is not served in this environment (it answers every request with a bare `OK`) and no key is configured |
 
 Each scorer must pass a **self-test** before it scores anything: HHEM scored a faithful answer 0.90, an
 invented one 0.03 and an off-topic one 0.005. If a scorer cannot tell known-good from known-bad answers the
 run fails instead of reporting its numbers.
 
-**What HHEM found.** The agent's answers are substantively right (keyword recall about 1.0) but often add
-small details the documents do not contain: "tears, fraying" for the conveyor check, "a qualified technician
-can assess and repair it" and "keep the press tagged out" (the guide never says tag out) for the oil leak.
-HHEM scores those as inconsistent, and reading them against the documents, it is right. The cause is the
-agent, not the scorer: its instructions say to answer only from the documents, and it elaborates anyway.
-Tightening the instructions (use the documents' wording, add nothing) is the lever; it is not changed here
-because it alters the agent's behaviour. Per-answer scores swing from run to run because the agent words its
-answers differently (one went 0.15 then 0.64), so the **mean is the steady signal** and the per-answer floor
-only catches an outright fabrication. Thresholds were set from two runs, below, and should be re-checked as
-more runs accumulate.
+**What HHEM is, and is not, good for here.** It scores each sentence or list item against the cited
+documents (scoring a whole multi-item answer in one pass was unreliable: one correct answer scored 0.31, 0.16
+and 0.07 on three runs). It is **strict**: it flags any claim the document does not state outright. That
+catches real embellishment, such as "tears, fraying" for the conveyor check, "a qualified technician can
+assess and repair it", or "keep the press tagged out" (the guide never says tag out). It also flags harmless
+restatement: "Guard placement: all guards are properly installed and in place" scored 0.02. So it measures
+**how closely the agent sticks to the documents' wording**, which is a useful trend (a drop means the agent
+is drifting), but it cannot separate harmless paraphrase from fabrication, so there is **no per-answer
+floor**; the lowest answer is reported and the gate is on the mean. Telling the two apart is the LLM judge's
+job, which is why that is the piece still to switch on. The weakest claims per answer are saved in
+`eval_results.json` under `hhem.weakest_claims`, so a low score can be read, not just trusted.
 
-| Run | HHEM mean | Worst single answer |
-|---|---|---|
-| 1 (markdown tables and emoji left in the answer text) | 0.506 | 0.153 |
-| 2 (answer text flattened to prose first) | 0.589 | 0.162 |
+The agent's instructions say to answer only from the documents, yet it elaborates; tightening them (use the
+documents' wording, add nothing) would raise the score. That is not changed here because it alters the
+agent's behaviour.
+
+| Full CI run (12 answers; the last row 6) | Whole answer | Claim by claim | Claims HHEM supports |
+|---|---|---|---|
+| 1 | 0.55 | **0.68** | 71% |
+| 2 | 0.59 | **0.65** | 68% |
+| 3 | 0.50 | **0.61** | 63% |
+| 4 (6 answers, final code) | n/a | **0.58** | 60% |
+
+The three full runs' answers are saved in `tests/fixtures/agent_answers.json`, and
+`python scripts/hhem.py rescore` re-scores them (also a step of the `Scorer self-tests` workflow), so a change
+to the scoring can be checked against real answers without spending agent credits.
 
 ```bash
 pip install -r requirements-hhem.txt --extra-index-url https://download.pytorch.org/whl/cpu   # about 1.5 GB on disk
@@ -224,12 +235,12 @@ How each Azure metric maps:
 
 | Azure metric | Copilot Studio | Status |
 |---|---|---|
-| Faithfulness (GPT-5 judge) | HHEM consistency (`scripts/hhem.py`); built-in General quality rejects this agent type | **0.51, 0.59** (mean, two runs) |
+| Faithfulness (GPT-5 judge) | HHEM consistency (`scripts/hhem.py`); built-in General quality rejects this agent type | **0.68, 0.65, 0.61** (claim-level mean, three runs) |
 | Answer relevance (GPT-5 judge) | LLM judge (`scripts/judge.py`); built-in General quality rejects this agent type | Built and unit-tested; **not yet run** (needs `JUDGE_API_KEY`) |
 | Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.986** |
 | Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
 | p95 latency | `scripts/run_evals.py` | **25.7 s** |
-| HHEM hallucination score | `scripts/hhem.py`, the same model the Azure template uses | **Running in CI**; gate mean ≥ 0.45, floor 0.08 |
+| HHEM hallucination score | `scripts/hhem.py`, the same model the Azure template uses | **Running in CI**; gate: claim-level mean ≥ 0.50 |
 | Memory recall | `scripts/run_evals.py` | **1.00** |
 
 The built-in Evaluation REST API (`api.powerplatform.com/copilotstudio/.../makerevaluation/testsets/{id}/run`)
@@ -459,7 +470,7 @@ Set in `.env` (see `.env.example`).
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | Environment-level export to Application Insights verified on this agent (prompt, reply, search calls, user); Dataverse transcripts also hold harness conversations (see Observability) |
 | `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
-| HHEM scoring | Ran in CI on the agent's real answers (two full runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; agent answers averaged 0.51 then 0.59, with the lowest answers adding details the documents lack. The LLM judge has only been run against a fake endpoint |
+| HHEM scoring | Ran in CI on the agent's real answers (four runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; claim-level means 0.68, 0.65, 0.61 and 0.58, with the weakest claims being elaborations the documents lack and some harmless restatements. The LLM judge has only been run against a fake endpoint |
 | New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 
 ## Troubleshooting

@@ -1,0 +1,34 @@
+name: Judge self-test
+
+# Checks that the LLM judge used by the evals can tell a faithful answer from an invented one and an
+# off-topic one. It needs no agent and no tenant access: only GitHub Models via the built-in token.
+# Run it after changing scripts/judge.py or the judge model (JUDGE_MODEL); the eval does the same check
+# before it judges anything.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Judge model (blank = openai/gpt-4.1)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  models: read
+
+jobs:
+  selftest:
+    name: Judge self-test
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      JUDGE_MODEL: ${{ inputs.model }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Judge self-test
+        run: python scripts/judge.py selftest

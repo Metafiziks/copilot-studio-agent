@@ -8,7 +8,7 @@ import pytest
 import judge
 import run_evals as ev
 
-CFG = {"base_url": "https://models.github.ai/inference", "model": "openai/gpt-4.1", "api_key": "t0ken"}
+CFG = {"base_url": "https://api.openai.com/v1", "model": "gpt-4.1", "api_key": "t0ken"}
 DOCS = [("loto", "Apply a lock and a tag. Verify zero energy before work.")]
 
 
@@ -39,30 +39,24 @@ OK = lambda content: (200, {}, completion(content))  # noqa: E731
 
 # --- configuration -----------------------------------------------------------------------------------
 
-def test_default_endpoint_uses_the_github_token():
-    cfg = judge.resolve_config({"GITHUB_TOKEN": "abc"}, allow_gh_cli=False)
-    assert cfg == {"base_url": judge.DEFAULT_BASE_URL, "model": judge.DEFAULT_MODEL, "api_key": "abc"}
+def test_a_key_alone_selects_the_documented_defaults():
+    cfg = judge.resolve_config({"JUDGE_API_KEY": "abc"})
+    assert cfg == {"base_url": "https://api.openai.com/v1", "model": "gpt-4.1", "api_key": "abc"}
 
 
-def test_judge_api_key_and_model_override_the_defaults():
-    cfg = judge.resolve_config({"JUDGE_API_KEY": "k", "JUDGE_MODEL": "m", "JUDGE_BASE_URL": "https://api.openai.com/v1/"})
-    assert cfg == {"base_url": "https://api.openai.com/v1", "model": "m", "api_key": "k"}
+def test_endpoint_and_model_can_be_overridden():
+    cfg = judge.resolve_config({"JUDGE_API_KEY": "k", "JUDGE_MODEL": " m ", "JUDGE_BASE_URL": "https://example.test/v1/"})
+    assert cfg == {"base_url": "https://example.test/v1", "model": "m", "api_key": "k"}
 
 
-def test_a_github_token_is_never_sent_to_another_host():
-    env = {"GITHUB_TOKEN": "abc", "GH_TOKEN": "def", "JUDGE_BASE_URL": "https://api.openai.com/v1"}
-    assert judge.resolve_config(env, allow_gh_cli=False) is None
+@pytest.mark.parametrize("env", [{}, {"JUDGE_API_KEY": ""}, {"JUDGE_API_KEY": "   "}])
+def test_no_key_means_no_judge(env):
+    assert judge.resolve_config(env) is None
 
 
-def test_no_credential_means_no_judge():
-    assert judge.resolve_config({}, allow_gh_cli=False) is None
-
-
-def test_ci_never_shells_out_to_the_gh_cli(monkeypatch):
-    def boom(*a, **k):
-        raise AssertionError("gh must not run in CI")
-    monkeypatch.setattr(judge.subprocess, "run", boom)
-    assert judge.resolve_config({"CI": "true"}) is None
+def test_other_credentials_in_the_environment_are_never_picked_up():
+    env = {"GITHUB_TOKEN": "gh", "GH_TOKEN": "gh2", "OPENAI_API_KEY": "sk", "ANTHROPIC_API_KEY": "an"}
+    assert judge.resolve_config(env) is None
 
 
 # --- documents ---------------------------------------------------------------------------------------
@@ -137,15 +131,9 @@ def test_call_returns_the_message_content_and_sends_auth_and_json_mode():
     transport = scripted(OK(verdict_json()))
     assert json.loads(judge.call_judge(CFG, [{"role": "user", "content": "x"}], transport))["faithfulness"] == 5
     call = transport.calls[0]
-    assert call["url"] == "https://models.github.ai/inference/chat/completions"
-    assert call["headers"]["Authorization"] == "Bearer t0ken" and "X-GitHub-Api-Version" in call["headers"]
+    assert call["url"] == "https://api.openai.com/v1/chat/completions"
+    assert call["headers"]["Authorization"] == "Bearer t0ken"
     assert call["body"]["response_format"] == {"type": "json_object"}
-
-
-def test_the_github_api_version_header_is_only_sent_to_github():
-    transport = scripted(OK("{}"))
-    judge.call_judge({**CFG, "base_url": "https://api.openai.com/v1"}, [], transport)
-    assert "X-GitHub-Api-Version" not in transport.calls[0]["headers"]
 
 
 def test_rate_limits_are_retried_honouring_retry_after():
@@ -177,7 +165,7 @@ def test_a_stub_that_answers_ok_is_an_error_not_a_score():
 
 def test_judge_answer_records_the_model_and_documents_it_read():
     v = judge.judge_answer("q", "a", DOCS, CFG, scripted(OK(verdict_json(5, 5, 4))), sleep=lambda s: None)
-    assert v["model"] == "openai/gpt-4.1" and v["context_docs"] == ["loto"] and v["completeness"] == 0.75
+    assert v["model"] == "gpt-4.1" and v["context_docs"] == ["loto"] and v["completeness"] == 0.75
 
 
 # --- self-test ---------------------------------------------------------------------------------------

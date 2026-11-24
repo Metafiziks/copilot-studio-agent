@@ -1,0 +1,46 @@
+name: Scorer self-tests
+
+# Checks that the scorers used by the evals can tell a faithful answer from an invented one and an off-topic
+# one: HHEM always, the LLM judge when JUDGE_API_KEY is configured. Needs no agent and no tenant access.
+# Run it after changing scripts/hhem.py, scripts/judge.py or a scorer model; the eval repeats the same
+# self-tests before it scores anything.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    name: Scorer self-tests
+    runs-on: ubuntu-latest
+    environment: dev          # the optional judge key is an environment secret
+    env:
+      JUDGE_API_KEY: ${{ secrets.JUDGE_API_KEY }}
+      JUDGE_BASE_URL: ${{ vars.JUDGE_BASE_URL }}
+      JUDGE_MODEL: ${{ vars.JUDGE_MODEL }}
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-hhem.txt
+
+      - name: Cache the HHEM model
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hhem-${{ hashFiles('scripts/hhem.py') }}
+
+      - name: Install PyTorch (CPU) and transformers
+        run: python -m pip install -r requirements-hhem.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+      - name: HHEM self-test
+        run: python scripts/hhem.py selftest
+
+      - name: LLM judge self-test (only when a judge key is configured)
+        if: env.JUDGE_API_KEY != ''
+        run: python scripts/judge.py selftest

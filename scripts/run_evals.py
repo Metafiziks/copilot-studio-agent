@@ -4,7 +4,7 @@
 Usage: .venv-eval/bin/python scripts/run_evals.py [--auth device|interactive] [--output eval_results.json]
                                                   [--cases tests/eval_cases.json] [--limit N]
                                                   [--skip-memory] [--memory-settle SECONDS]
-                                                  [--judge auto|on|off] [--docs docs]
+                                                  [--hhem auto|on|off] [--judge auto|on|off] [--docs docs]
 
 Run it as a user who holds a SharePoint-bearing license (set AGENT_TOKEN_CACHE to keep one sign-in per
 user): the agent searches SharePoint as the signed-in user, and for an unlicensed user every question
@@ -19,20 +19,20 @@ Deterministic metrics, computed here from real agent replies:
                             about it in a NEW conversation, so only memory can supply the answer
   Failed calls              any failed call, or an answer with no text, fails the run
 
-LLM-judged metrics (scripts/judge.py), each answer scored against the source documents in docs/:
+Faithfulness and quality, scored against the source documents in docs/ (Copilot Studio's built-in Agent
+Evaluation rejects this agent type, README > Evaluations, so the scoring lives here):
 
-  Faithfulness    >= 0.85   mean: every claim supported by the documents (the hallucination check)
-  Min faithfulness >= 0.50  no single answer may be badly unfaithful, whatever the mean
-  Relevance       >= 0.85   mean: the answer addresses the question
-  Completeness    >= 0.60   mean: the answer includes what the documents say that the question asks for
-  Judge self-test           before judging, the judge must score a known-good, a known-invented and a
+  HHEM mean       >= 0.60   scripts/hhem.py: probability each answer is consistent with its source documents
+  HHEM min        >= 0.30   no single answer may look hallucinated, whatever the mean. Needs PyTorch, no key
+  Judge faithfulness >= 0.85, relevance >= 0.85, completeness >= 0.60, min faithfulness >= 0.50
+                            scripts/judge.py: an LLM judge, active only when JUDGE_API_KEY is set
+  Self-tests                before scoring, each scorer must rate a known-good, a known-invented and a
                             known-off-topic answer correctly; if it cannot, the run fails
 
-Copilot Studio's built-in Agent Evaluation rejects this agent type (README > Evaluations), which is why the
-judging lives here. --judge auto (default) judges when a credential is available (`gh auth login` locally, the
-GITHUB_TOKEN in Actions) and says so when it skips; --judge on fails the run if it cannot judge.
+--hhem and --judge take auto (default: score when the scorer is available and say so when skipping), on (fail
+the run if it cannot score) or off. CI runs --hhem on.
 
-A failed call, a judge error or a missing citation is never counted as a pass. A memory case writes a
+A failed call, a scorer error or a missing citation is never counted as a pass. A memory case writes a
 preference into the signed-in user's memory, and that persists.
 """
 
@@ -47,10 +47,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+HHEM_THRESHOLDS = {"hhem_mean": 0.60, "hhem_min": 0.30}
 JUDGE_THRESHOLDS = {"judge_faithfulness": 0.85, "judge_relevance": 0.85, "judge_completeness": 0.60,
                     "judge_min_faithfulness": 0.50}
 THRESHOLDS = {"keyword_recall": 0.65, "citation_recall": 0.60, "p95_latency_ms": 45_000, "memory_recall": 1.0,
-              **JUDGE_THRESHOLDS}
+              **HHEM_THRESHOLDS, **JUDGE_THRESHOLDS}
 
 
 # --- pure metric functions (unit-tested) -------------------------------------------------------
@@ -127,7 +128,7 @@ def score_memory_case(case: dict, replies: list) -> dict:
 
 
 def summarize(results: list[dict], thresholds: dict = THRESHOLDS, memory_results: list[dict] | None = None,
-              judge_selftest: dict | None = None) -> dict:
+              judge_selftest: dict | None = None, hhem_selftest: dict | None = None) -> dict:
     memory_results = memory_results or []
     n = len(results)
     failures = [r["id"] for r in results + memory_results if r["error"]]
@@ -144,6 +145,18 @@ def summarize(results: list[dict], thresholds: dict = THRESHOLDS, memory_results
     if memory_results:
         metrics["memory_recall"] = round(sum(r["memory_recall"] for r in memory_results) / len(memory_results), 3)
         checks["memory_recall"] = metrics["memory_recall"] >= thresholds["memory_recall"]
+    hhem_errors = []
+    hhemed = [r for r in results if "hhem" in r]
+    if hhemed:
+        hhem_errors = [r["id"] for r in hhemed if "error" in r["hhem"]]
+        scored = [r["hhem"]["score"] for r in hhemed if "error" not in r["hhem"]]
+        metrics["hhem_mean"] = round(sum(scored) / len(scored), 3) if scored else 0.0
+        metrics["hhem_min"] = min(scored, default=0.0)
+        checks["hhem_mean"] = bool(scored) and metrics["hhem_mean"] >= thresholds["hhem_mean"]
+        checks["hhem_min"] = bool(scored) and metrics["hhem_min"] >= thresholds["hhem_min"]
+        checks["no_hhem_errors"] = not hhem_errors
+    if hhem_selftest is not None:
+        checks["hhem_selftest"] = bool(hhem_selftest.get("passed"))
     judge_errors = []
     judged = [r for r in results if "judge" in r]
     if judged:
@@ -158,7 +171,7 @@ def summarize(results: list[dict], thresholds: dict = THRESHOLDS, memory_results
     if judge_selftest is not None:
         checks["judge_selftest"] = bool(judge_selftest.get("passed"))
     return {"cases": n, "memory_cases": len(memory_results), "metrics": metrics, "thresholds": thresholds, "checks": checks,
-            "failed_calls": failures, "judge_errors": judge_errors, "passed": bool(n) and all(checks.values())}
+            "failed_calls": failures, "hhem_errors": hhem_errors, "judge_errors": judge_errors, "passed": bool(n) and all(checks.values())}
 
 
 def select_cases(cases: list[dict], limit: int | None = None) -> list[dict]:
@@ -172,6 +185,25 @@ def select_memory_cases(cases: list[dict]) -> list[dict]:
 
 
 # --- judging -------------------------------------------------------------------------------------
+
+def hhem_results(results: list[dict], cases: list[dict], corpus: dict[str, str], model=None) -> None:
+    """Attach an HHEM consistency score to every answered result, in place. A failure is recorded, not hidden."""
+    import hhem
+
+    by_id = {c["id"]: c for c in cases}
+    for i, result in enumerate(results, 1):
+        if result["error"]:
+            continue                                  # no answer to score; the case already failed
+        documents = hhem.premise_documents(corpus, result.get("cited", []), by_id[result["id"]].get("expected_sources", []))
+        try:
+            value = hhem.score([(hhem.build_premise(documents), result["answer"])], model)[0]
+            result["hhem"] = {"score": value, "consistent": value >= hhem.CONSISTENT_AT,
+                              "premise_docs": [name for name, _ in documents]}
+            print(f"[hhem {i}/{len(results)}] {result['id']}: consistency={value:.2f}", file=sys.stderr, flush=True)
+        except Exception as exc:  # noqa: BLE001 - one bad pair must not hide the others
+            result["hhem"] = {"error": f"{type(exc).__name__}: {exc}"}
+            print(f"[hhem {i}/{len(results)}] {result['id']}: HHEM ERROR {exc}", file=sys.stderr, flush=True)
+
 
 def judge_results(results: list[dict], cases: list[dict], corpus: dict[str, str], cfg: dict,
                   transport=None, sleep=None) -> None:
@@ -193,6 +225,61 @@ def judge_results(results: list[dict], cases: list[dict], corpus: dict[str, str]
         except judge.JudgeError as exc:
             result["judge"] = {"error": str(exc)}
             print(f"[judge {i}/{len(results)}] {result['id']}: JUDGE ERROR {exc}", file=sys.stderr, flush=True)
+
+
+def prepare_scorers(hhem_mode: str, judge_mode: str, docs_dir: Path, env=None, hhem_mod=None, judge_mod=None) -> dict:
+    """Resolve and self-test each scorer BEFORE any agent credits are spent.
+
+    auto: use a scorer when it is available and note why when it is not; on: refuse to run without it;
+    off: skip. A scorer whose self-test FAILS is never skipped: its verdict would be meaningless, so the run
+    fails. The modules are injectable for tests.
+    """
+    import hhem as hhem_default
+    import judge as judge_default
+
+    hhem_mod, judge_mod = hhem_mod or hhem_default, judge_mod or judge_default
+    out = {"corpus": {}, "hhem_model": None, "hhem_selftest": None, "hhem_note": None if hhem_mode != "off" else "off",
+           "judge_cfg": None, "judge_selftest": None, "judge_note": None if judge_mode != "off" else "off"}
+    if hhem_mode == "off" and judge_mode == "off":
+        return out
+    out["corpus"] = judge_mod.load_corpus(docs_dir)
+    no_docs = f"no source documents under {docs_dir}"
+
+    def unavailable(mode: str, why: str, note_key: str) -> None:
+        if mode == "on":
+            sys.exit(f"--{note_key.split('_')[0]} on, but {why}")
+        out[note_key] = f"skipped: {why}"
+        print(f"NOTE: {note_key.split('_')[0].upper()} scoring {out[note_key]}", file=sys.stderr, flush=True)
+
+    if hhem_mode != "off":
+        if not out["corpus"]:
+            unavailable(hhem_mode, no_docs, "hhem_note")
+        else:
+            try:
+                out["hhem_model"] = hhem_mod.load_model()
+                out["hhem_selftest"] = hhem_mod.selftest(out["hhem_model"])
+                print(f"hhem self-test: {'passed' if out['hhem_selftest']['passed'] else 'FAILED ' + str(out['hhem_selftest']['scores'])}",
+                      file=sys.stderr, flush=True)
+            except hhem_mod.HHEMUnavailable as exc:
+                unavailable(hhem_mode, str(exc), "hhem_note")
+    if judge_mode != "off":
+        cfg = judge_mod.resolve_config(env)
+        if not cfg:
+            unavailable(judge_mode, "no JUDGE_API_KEY (set it to enable the LLM judge)", "judge_note")
+        elif not out["corpus"]:
+            unavailable(judge_mode, no_docs, "judge_note")
+        else:
+            try:
+                out["judge_selftest"] = judge_mod.selftest(cfg)
+                out["judge_cfg"] = cfg
+                print(f"judge self-test ({cfg['model']}): {'passed' if out['judge_selftest']['passed'] else 'FAILED ' + str(out['judge_selftest']['scores'])}",
+                      file=sys.stderr, flush=True)
+            except judge_mod.JudgeError as exc:
+                if judge_mode == "on":
+                    out["judge_selftest"] = {"passed": False, "error": str(exc), "model": cfg["model"]}
+                else:
+                    unavailable(judge_mode, f"the judge endpoint is unavailable ({exc})", "judge_note")
+    return out
 
 
 # --- runner --------------------------------------------------------------------------------------
@@ -234,8 +321,6 @@ async def run(cases: list[dict], auth: str, memory_cases: list[dict] | None = No
 
 
 def main() -> int:
-    import judge
-
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--auth", choices=["device", "interactive"], default="device")
     parser.add_argument("--cases", type=Path, default=ROOT / "tests" / "eval_cases.json")
@@ -243,9 +328,11 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=None, help="run only the first N cases")
     parser.add_argument("--skip-memory", action="store_true", help="do not run the multi-turn memory cases")
     parser.add_argument("--memory-settle", type=float, default=30.0, help="seconds between memory turns")
+    parser.add_argument("--hhem", choices=["auto", "on", "off"], default="auto",
+                        help="HHEM faithfulness score (auto: only if PyTorch is installed)")
     parser.add_argument("--judge", choices=["auto", "on", "off"], default="auto",
-                        help="LLM-judge the answers (auto: only if a judge credential is available)")
-    parser.add_argument("--docs", type=Path, default=ROOT / "docs", help="source documents the judge reads")
+                        help="LLM judge (auto: only if JUDGE_API_KEY is set)")
+    parser.add_argument("--docs", type=Path, default=ROOT / "docs", help="source documents the scorers read")
     args = parser.parse_args()
 
     all_cases = json.loads(args.cases.read_text(encoding="utf-8"))
@@ -254,34 +341,16 @@ def main() -> int:
     if not cases:
         sys.exit("No runnable cases found")
 
-    # Settle the judge BEFORE spending agent credits: a missing credential or a judge that cannot tell good
-    # answers from bad ones should be known up front.
-    cfg, corpus, selftest, judge_note = None, {}, None, None
-    if args.judge != "off":
-        cfg = judge.resolve_config()
-        corpus = judge.load_corpus(args.docs) if cfg else {}
-        if not cfg or not corpus:
-            reason = ("no judge credential (run `gh auth login`, or set JUDGE_API_KEY; in Actions give the job "
-                      "`permissions: models: read`)") if not cfg else f"no source documents under {args.docs}"
-            if args.judge == "on":
-                sys.exit(f"--judge on, but {reason}")
-            judge_note = f"skipped: {reason}"
-            print(f"NOTE: LLM judging {judge_note}", file=sys.stderr, flush=True)
-            cfg = None
-        else:
-            try:
-                selftest = judge.selftest(cfg)
-            except judge.JudgeError as exc:
-                selftest = {"passed": False, "error": str(exc), "model": cfg["model"]}
-            print(f"judge self-test ({cfg['model']}): {'passed' if selftest['passed'] else 'FAILED'}"
-                  + (f" {selftest.get('error') or selftest['checks']}" if not selftest["passed"] else ""),
-                  file=sys.stderr, flush=True)
-
+    scorers = prepare_scorers(args.hhem, args.judge, args.docs)
     results, memory_results = asyncio.run(run(cases, args.auth, memory_cases, args.memory_settle))
-    if cfg and selftest and selftest["passed"]:
-        judge_results(results, cases, corpus, cfg)
-    summary = summarize(results, memory_results=memory_results, judge_selftest=selftest)
-    summary["judge"] = {"model": cfg["model"], "selftest": selftest} if cfg else (judge_note or "off")
+    if scorers["hhem_selftest"] and scorers["hhem_selftest"]["passed"]:
+        hhem_results(results, cases, scorers["corpus"], scorers["hhem_model"])
+    if scorers["judge_cfg"] and scorers["judge_selftest"] and scorers["judge_selftest"]["passed"]:
+        judge_results(results, cases, scorers["corpus"], scorers["judge_cfg"])
+    summary = summarize(results, memory_results=memory_results, judge_selftest=scorers["judge_selftest"],
+                        hhem_selftest=scorers["hhem_selftest"])
+    summary["scorers"] = {"hhem": scorers["hhem_selftest"] or scorers["hhem_note"],
+                          "judge": scorers["judge_selftest"] or scorers["judge_note"]}
     args.output.write_text(json.dumps({"summary": summary, "results": results, "memory_results": memory_results},
                                       indent=2), encoding="utf-8")
 

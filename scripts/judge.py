@@ -14,14 +14,15 @@ corpus). It does not see the passages the agent retrieved: the Agents SDK reply 
 citations but not the retrieved text, and judging against the documents also catches a retriever that
 returned the wrong passage and an answer that happened to sound right.
 
-Judge model. By default GitHub Models (https://models.github.ai/inference, model openai/gpt-4.1), which is a
-different model family from the agent (Claude), so it does not favour the agent's own style. It needs no new
-account: locally it uses your `gh auth login`, in Actions the built-in GITHUB_TOKEN with `models: read`.
-Any OpenAI-compatible chat-completions endpoint works instead:
+Judge model. Any OpenAI-compatible chat-completions endpoint, configured explicitly (there is no default
+credential, and nothing is sent anywhere until JUDGE_API_KEY is set):
 
-  JUDGE_BASE_URL   default https://models.github.ai/inference   (e.g. https://api.openai.com/v1)
-  JUDGE_MODEL      default openai/gpt-4.1
-  JUDGE_API_KEY    key for that endpoint. A GitHub token is only ever sent to models.github.ai.
+  JUDGE_API_KEY    key for the endpoint (a repository secret in CI)
+  JUDGE_BASE_URL   default https://api.openai.com/v1. Others: https://models.github.ai/inference (GitHub
+                   Models, key = a GitHub token with models:read), an Azure OpenAI /openai/v1 URL, or
+                   https://api.anthropic.com/v1 (Anthropic's OpenAI-compatible endpoint)
+  JUDGE_MODEL      default gpt-4.1. Use a different model family from the agent (Claude Sonnet) so the judge
+                   does not favour the agent's own style.
 
 Usage:
   python scripts/judge.py selftest                       # prove the judge tells good answers from bad ones
@@ -32,19 +33,16 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 
-DEFAULT_BASE_URL = "https://models.github.ai/inference"
-DEFAULT_MODEL = "openai/gpt-4.1"
-GITHUB_MODELS_HOST = "models.github.ai"
+DEFAULT_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_MODEL = "gpt-4.1"
 MAX_CONTEXT_CHARS = 60_000          # above this, only the cited and expected documents are sent
 DIMENSIONS = ("faithfulness", "relevance", "completeness")
 RETRY_STATUSES = {429, 500, 502, 503, 504}
@@ -91,26 +89,14 @@ class JudgeError(RuntimeError):
 
 # --- configuration ---------------------------------------------------------------------------------
 
-def resolve_config(env=None, allow_gh_cli: bool = True) -> dict | None:
-    """Judge endpoint settings from the environment, or None if no credential is available.
-
-    A GitHub token is only used for GitHub Models: pointing JUDGE_BASE_URL elsewhere without JUDGE_API_KEY
-    yields None instead of sending a GitHub token to a third party.
-    """
+def resolve_config(env=None) -> dict | None:
+    """Judge endpoint settings from the environment, or None when JUDGE_API_KEY is not set."""
     env = os.environ if env is None else env
-    base_url = (env.get("JUDGE_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
-    model = env.get("JUDGE_MODEL") or DEFAULT_MODEL
-    key = env.get("JUDGE_API_KEY")
-    if not key and urlparse(base_url).hostname == GITHUB_MODELS_HOST:
-        key = env.get("GITHUB_TOKEN") or env.get("GH_TOKEN")
-        if not key and allow_gh_cli and env.get("CI") != "true":
-            try:
-                key = subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=10).stdout.strip()
-            except (OSError, subprocess.SubprocessError):
-                key = ""
+    key = (env.get("JUDGE_API_KEY") or "").strip()
     if not key:
         return None
-    return {"base_url": base_url, "model": model, "api_key": key}
+    return {"base_url": (env.get("JUDGE_BASE_URL") or DEFAULT_BASE_URL).rstrip("/"),
+            "model": (env.get("JUDGE_MODEL") or DEFAULT_MODEL).strip(), "api_key": key}
 
 
 # --- source documents ------------------------------------------------------------------------------
@@ -204,8 +190,6 @@ def call_judge(cfg: dict, messages: list[dict], transport=http_transport, retrie
     """One chat-completions call, retrying rate limits and transient errors with backoff."""
     headers = {"Authorization": f"Bearer {cfg['api_key']}", "Content-Type": "application/json",
                "Accept": "application/json", "User-Agent": "copilot-studio-agent-evals"}
-    if urlparse(cfg["base_url"]).hostname == GITHUB_MODELS_HOST:
-        headers["X-GitHub-Api-Version"] = "2022-11-28"
     url = f"{cfg['base_url']}/chat/completions"
     body = json.dumps(request_body(cfg, messages)).encode("utf-8")
     last = ""
@@ -262,7 +246,7 @@ def main() -> int:
     args = parser.parse_args()
     cfg = resolve_config()
     if not cfg:
-        sys.exit("No judge credential: run `gh auth login`, or set JUDGE_API_KEY (and JUDGE_BASE_URL). See the docstring.")
+        sys.exit("No judge credential: set JUDGE_API_KEY (and JUDGE_BASE_URL / JUDGE_MODEL). See the docstring.")
     try:
         if args.command == "selftest":
             result = selftest(cfg)

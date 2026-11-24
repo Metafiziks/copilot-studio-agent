@@ -14,7 +14,7 @@ configuration:
     instructions:
       segments:
         - kind: StaticSegment
-          value: "Answer questions using only the documents you retrieve from your knowledge sources. Say which document each answer comes from. If the documents do not contain the answer, say so plainly instead of guessing. Remember the user's stated preferences and apply them in later conversations."
+          value: "Answer questions using only the documents you retrieve from your knowledge sources. Use the documents' own wording and state only what they say: do not add explanations, reasons, examples, synonyms or details that are not written in them, and do not infer or generalize beyond them. Answer exactly what was asked, as a short list or a few sentences, with no preamble and no extra reminders or warnings. Name the document the answer comes from once. If the documents do not contain the answer, or only part of it, say plainly which part is not covered instead of guessing. Remember the user's stated preferences and apply them in later conversations."
 
     enableMemory: true
 

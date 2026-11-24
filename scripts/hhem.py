@@ -87,7 +87,11 @@ def split_claims(text: str) -> list[str]:
     """
     text = re.sub(r"\[\d+\]|\[[^\]]*\]\(https?://[^)]*\)|https?://\S+", "", text)
     claims = []
-    for line in text.splitlines():
+    lines = text.splitlines()
+    separator = re.compile(r"^\s*\|?[\s:|-]*-{3,}[\s:|-]*\|?\s*$")
+    for i, line in enumerate(lines):
+        if i + 1 < len(lines) and "|" in line and separator.match(lines[i + 1]):
+            continue                                               # a table's header row labels columns, it claims nothing
         line = clean_answer(line)
         for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", line):
             sentence = sentence.strip()

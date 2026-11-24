@@ -14,8 +14,8 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > as a licensed user), and **telemetry** (environment-level export to Application Insights, verified).
 > **Faithfulness is scored with HHEM**, an open model that runs in CI with no key. It found the agent
 > elaborating beyond the documents (claim-level mean 0.61 to 0.68); tightening the instructions raised it to
-> 0.77, gated at 0.65. It is a strict trend metric (see Evaluations). An **LLM judge** for relevance and completeness is built and unit-tested but has **never
-> run against a live model**: it needs a key you provide. Copilot Studio's built-in graders reject this agent
+> 0.77, gated at 0.65. It is a strict trend metric (see Evaluations). An **LLM judge** (GPT-4.1) passes its self-test and
+> scored all 54 saved answers 5/5/5, so it is a coarse check, not a trend metric (see Evaluations). Copilot Studio's built-in graders reject this agent
 > type (see Evaluations). **Not built:** anomaly detection.
 > **Two things will silently break it:** a user without a SharePoint-bearing license, and a brand-new
 > SharePoint site (see Troubleshooting). Each section says exactly where it stands.
@@ -163,7 +163,7 @@ documents in `docs/`:
 | Scorer | What it measures | Needs | Status |
 |---|---|---|---|
 | **HHEM** (`scripts/hhem.py`) | Probability (0 to 1) that each claim in an answer is consistent with its source documents, averaged. Vectara's HHEM-2.1-open: Apache-2.0, pinned revision, runs on CPU | PyTorch (`requirements-hhem.txt`); no key | **Running in CI.** Gate: claim-level mean ≥ 0.65; the worst single answer is reported, not gated |
-| **LLM judge** (`scripts/judge.py`) | Faithfulness, relevance and completeness, 1 to 5 each | `JUDGE_API_KEY` for any OpenAI-compatible endpoint | Built and covered by unit tests with a fake endpoint. **Never run against a live model**: GitHub Models is not served in this environment (it answers every request with a bare `OK`) and no key is configured |
+| **LLM judge** (`scripts/judge.py`) | Faithfulness, relevance and completeness, 1 to 5 each | `JUDGE_API_KEY` for any OpenAI-compatible endpoint | Self-test passes against a live model (`gpt-4.1`: faithful 5, invented 1, off-topic relevance 1). Scored all 54 saved answers 5/5/5, so it does not separate the old and tightened instructions (see below). GitHub Models is not usable here (it answers every request with a bare `OK`) |
 
 Each scorer must pass a **self-test** before it scores anything: HHEM scored a faithful answer 0.90, an
 invented one 0.03 and an off-topic one 0.005. If a scorer cannot tell known-good from known-bad answers the
@@ -177,9 +177,18 @@ assess and repair it", or "keep the press tagged out" (the guide never says tag 
 restatement: "Guard placement: all guards are properly installed and in place" scored 0.02. So it measures
 **how closely the agent sticks to the documents' wording**, which is a useful trend (a drop means the agent
 is drifting), but it cannot separate harmless paraphrase from fabrication, so there is **no per-answer
-floor**; the lowest answer is reported and the gate is on the mean. Telling the two apart is the LLM judge's
-job, which is why that is the piece still to switch on. The weakest claims per answer are saved in
+floor**; the lowest answer is reported and the gate is on the mean. Telling the two apart was meant to be the LLM judge's
+job, but the judge turned out too lenient to do it: see "What the LLM judge showed" below. The weakest claims per answer are saved in
 `eval_results.json` under `hhem.weakest_claims`, so a low score can be read, not just trusted.
+
+**What the LLM judge showed.** `python scripts/judge.py rescore` (the `Scorer self-tests` workflow runs it) judges the
+saved answers with `gpt-4.1` and costs no agent credits. All 54 answers, before and after tightening, scored
+faithfulness, relevance and completeness 5/5/5, with no unsupported claims listed. That agrees with HHEM on the
+main point: the agent invents no facts, steps or numbers. It cannot show the improvement HHEM measured, and it
+missed embellishments a reader can find: "Production must halt immediately upon discovery of the error" and
+"physically separated and held" are not in the line clearance standard (which says only "Stop the line, segregate
+affected product, ..."), and neither lowered the score. A 1 to 5 whole-answer score saturates on correct answers,
+so use the judge to catch a regression (one answer dropping to 3 or below fails the run) and HHEM to track drift.
 
 **Fixing it: tighter instructions, measured.** The agent's instructions said to answer only from the
 documents, yet it elaborated. They now also say to use the documents' wording, add no explanations, examples or
@@ -254,7 +263,7 @@ How each Azure metric maps:
 | Azure metric | Copilot Studio | Status |
 |---|---|---|
 | Faithfulness (GPT-5 judge) | HHEM consistency (`scripts/hhem.py`); built-in General quality rejects this agent type | **0.61 to 0.68** before tightening the agent's instructions, **0.77** after (claim-level mean) |
-| Answer relevance (GPT-5 judge) | LLM judge (`scripts/judge.py`); built-in General quality rejects this agent type | Built and unit-tested; **not yet run** (needs `JUDGE_API_KEY`) |
+| Answer relevance (GPT-5 judge) | LLM judge (`scripts/judge.py`); built-in General quality rejects this agent type | LLM judge on the 54 saved answers: **1.00 on every run**, which is a ceiling, not a measurement |
 | Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.924** (0.986 before the instructions were tightened) |
 | Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
 | p95 latency | `scripts/run_evals.py` | **29.2 s** |
@@ -467,7 +476,7 @@ Set in `.env` (see `.env.example`).
 | `RESTRICTED_SITE_NICK` / `RESTRICTED_SITE_TITLE` | Restricted site in protected mode (default `ol-restricted`) |
 | `EVAL_CLIENT_ID` / `EVAL_TENANT_ID` | Evals: the app registration from `scripts/setup_entra_app.sh` and its tenant |
 | `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME` | Evals: the agent to call (the environment ID is in the portal URL; the schema name is `olk_OLMemoryAgent`) |
-| `JUDGE_API_KEY` / `JUDGE_BASE_URL` / `JUDGE_MODEL` | Optional LLM judge: key for any OpenAI-compatible endpoint (default `https://api.openai.com/v1`, model `gpt-4.1`). Unset, the judge is skipped and the run says so |
+| `JUDGE_API_KEY` / `JUDGE_BASE_URL` / `JUDGE_MODEL` | Optional LLM judge (set in `dev`): key for any OpenAI-compatible endpoint (default `https://api.openai.com/v1`, model `gpt-4.1`). Unset, the judge is skipped and the run says so |
 | `AGENT_TOKEN_CACHE` | Evals: the sign-in cache file (default `.build/token_cache.json`). Use a different file per test user |
 | `OBS_RESOURCE_GROUP` / `OBS_LOCATION` | Monitoring resource group and region (defaults `rg-copilot-agent-obs`, `eastus2`) |
 | `OBS_WORKSPACE` / `OBS_APPINSIGHTS` | Log Analytics workspace and Application Insights names (defaults `log-copilot-agent`, `appi-copilot-agent`) |
@@ -488,7 +497,7 @@ Set in `.env` (see `.env.example`).
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | Environment-level export to Application Insights verified on this agent (prompt, reply, search calls, user); Dataverse transcripts also hold harness conversations (see Observability) |
 | `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
-| HHEM scoring | Ran in CI on the agent's real answers (six runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; claim-level means 0.68, 0.65, 0.61 and 0.58 before, 0.84 and 0.77 after tightening the agent's instructions. The weakest claims were elaborations the documents lack and some harmless restatements. The LLM judge has only been run against a fake endpoint |
+| HHEM scoring | Ran in CI on the agent's real answers (six runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; claim-level means 0.68, 0.65, 0.61 and 0.58 before, 0.84 and 0.77 after tightening the agent's instructions. The weakest claims were elaborations the documents lack and some harmless restatements. The LLM judge (`gpt-4.1`) passed its self-test live and scored all 54 saved answers 5/5/5, including ones with elaboration HHEM flags |
 | New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 
 ## Troubleshooting

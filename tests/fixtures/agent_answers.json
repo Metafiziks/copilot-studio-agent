@@ -1,0 +1,392 @@
+[
+ {
+  "run": "run1",
+  "id": "line-2-daily-startup-inspection-items",
+  "question": "For Line 2 belt conveyors, what must operators check during the daily inspection before startup?",
+  "answer": "According to the **Conveyor Preventive Maintenance Manual** (Revision 2026.02), which applies to Line 1, Line 2, and Line 3 conveyors, operators must inspect belt conveyors **before startup** for the following[1]:\n\n1. **Unusual noise** — listen for any abnormal sounds\n2. **Belt damage** — visually inspect the belt for tears, fraying, or other damage\n3. **Loose fasteners** — check that all fasteners are properly secured\n4. **Foreign objects** — ensure no debris or objects are on or around the conveyor\n5. **Visible guarding issues** — confirm all guards are in place and intact\n\n> ⚠️ **Any abnormal condition found must be reported to maintenance** before starting up the conveyor.",
+  "cited": [
+   "conveyor_pm_manual.docx"
+  ],
+  "expected_sources": [
+   "conveyor_pm_manual.docx"
+  ],
+  "whole_answer_hhem": 0.2776
+ },
+ {
+  "run": "run1",
+  "id": "emergency-stop-testing-and-failure-action",
+  "question": "How often must emergency stop pull cords and buttons on the conveyors be tested, and what must be done if any device fails?",
+  "answer": "Based on the **Conveyor Preventive Maintenance Manual** [1], here is the answer:\n\n---\n\n**Testing Frequency:**\nEmergency stop pull cords and buttons on the conveyors must be tested **weekly**.\n\n**If a Device Fails:**\nIf any emergency stop device fails, **the conveyor must be removed from service until it is repaired**.",
+  "cited": [
+   "conveyor_pm_manual.docx"
+  ],
+  "expected_sources": [
+   "conveyor_pm_manual.docx"
+  ],
+  "whole_answer_hhem": 0.9507
+ },
+ {
+  "run": "run1",
+  "id": "hydraulic-press-oil-leak-response",
+  "question": "I found oil under a hydraulic press HP-120 on the floor. What immediate steps should I take according to the Hydraulic Press Troubleshooting Guide?",
+  "answer": "According to the **Hydraulic Press Troubleshooting Guide** (which applies to units HP-100 through HP-140, including your HP-120)[1], here are the immediate steps you should take under the **Oil Leak Response** section:\n\n1. **Stop the machine immediately** — Do not continue operating the press.\n2. **Notify maintenance** — Report the leak so a qualified technician can assess and repair it.\n3. **Do NOT operate the press with active hydraulic leaks** — The press must remain out of service until the leak is resolved.\n4. **Use absorbent pads** — Contain the spill on the floor.\n5. **Follow spill response procedures** — Adhere to your site's standard spill response protocol.\n\n> ⚠️ **Important reminder:** As a floor supervisor, you can request maintenance support, but you may **not** authorize bypassing pressure limits, guards, interlocks, or safety devices[1].\n\nKeep the press tagged out until maintenance has verified leak-free operation and completed all required restart checks (guard placement, pressure settings, emergency stop function, and a successful dry cycle test)[1].",
+  "cited": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "expected_sources": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "whole_answer_hhem": 0.1529
+ },
+ {
+  "run": "run1",
+  "id": "hydraulic-press-restart-verifications",
+  "question": "Before returning a hydraulic press to production after maintenance, what must maintenance verify?",
+  "answer": "According to the **Hydraulic Press Troubleshooting Guide** (applies to units HP-100 through HP-140)[1], before returning a hydraulic press to production after maintenance, maintenance must verify all five of the following:\n\n1. **Guard placement** — All guards must be correctly positioned.\n2. **Pressure settings** — Pressure must be set to the correct levels.\n3. **Leak-free operation** — The press must have no active hydraulic leaks.\n4. **Emergency stop function** — The emergency stop must be tested and confirmed operational.\n5. **Successful dry cycle testing** — The press must complete a dry cycle test successfully.\n\n> ⚠️ Note: Floor supervisors may request maintenance support, but they are **not authorized** to bypass pressure limits, guards, interlocks, or safety devices[1].",
+  "cited": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "expected_sources": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "whole_answer_hhem": 0.3086
+ },
+ {
+  "run": "run1",
+  "id": "containment-steps-repeated-defects",
+  "question": "If repeated defects are found in a finished goods lot before shipment, what containment steps are required?",
+  "answer": "According to the **Finished Goods Defect Classification Standard** (Revision 2026.03)[1], when repeated defects are found in a finished goods lot before shipment, the **supervisor** must take the following four containment steps:\n\n1. **Stop shipment** of the affected lot immediately.\n2. **Notify Quality Assurance.**\n3. **Identify the last known good unit.**\n4. **Begin containment.**\n\nAdditionally, if any rework is required as part of the response:\n- Rework must follow **approved work instructions**.\n- All reworked product must be **reinspected before release**.",
+  "cited": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "expected_sources": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "whole_answer_hhem": 0.8559
+ },
+ {
+  "run": "run1",
+  "id": "classification-failed-packaging-seal",
+  "question": "How should a failed packaging seal on a finished good be classified, and what action is required before release?",
+  "answer": "Based on the **Finished Goods Defect Classification Standard** [1], here is the answer:\n\n---\n\n## Failed Packaging Seal — Classification & Required Action\n\n### Classification: **Major Defect**\nA failed packaging seal is explicitly listed as a **Major Defect** — defined as a defect that affects product function, fit, performance, customer usability, or appearance beyond approved limits.\n\n### Required Action Before Release\nMajor defects require **supervisor review and possible rework or rejection**. Specifically:\n\n- Any **rework** performed must follow **approved work instructions**.\n- The reworked product **must be reinspected before release** — it cannot be shipped until it passes reinspection.\n\n### Additional Containment (If Defects Are Repeated)\nIf the failed seal is part of a pattern of repeated defects, the supervisor must:\n1. **Stop shipment** of the affected lot\n2. **Notify Quality Assurance**\n3. **Identify the last known good unit**\n4. **Begin containment**\n\nIn short: a failed packaging seal cannot be released as-is. It must go through supervisor review, rework per approved instructions, and a reinspection before it can be cleared for shipment [1].",
+  "cited": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "expected_sources": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "whole_answer_hhem": 0.629
+ },
+ {
+  "run": "run1",
+  "id": "verify-incoming-inspection-items",
+  "question": "At receiving, which specific items must I verify during incoming inspection before releasing raw materials to production?",
+  "answer": "Based on the **Incoming Material Inspection Standard** (Revision 2026.03)[1], here are the specific items you must verify during incoming inspection before releasing raw materials to production:\n\n---\n\n### ✅ Incoming Inspection Checklist\n\n| # | Item to Verify |\n|---|----------------|\n| 1 | **Supplier name** — confirm it matches an approved supplier |\n| 2 | **Purchase order** — verify the shipment matches the PO |\n| 3 | **Lot number** — confirm it is present and correct |\n| 4 | **Certificate of Analysis (CoA)** — required when specified for the material |\n| 5 | **Quantity** — confirm received quantity matches the PO |\n| 6 | **Packaging condition** — check for damage, tears, or compromise |\n| 7 | **Visible damage** — inspect for any physical damage to the materials |\n\n---\n\n### 📋 Acceptance Criteria\nMaterials may be released to production only if they:\n- Match purchase specifications\n- Show **no contamination**\n- Include all **required documentation**\n- Meet **dimensional or visual requirements**\n\n---\n\n### 🚫 Auto-Reject Conditions\nMaterials **must be rejected or quarantined** if they are:\n- Damaged or contaminated\n- Mislabeled\n- Missing required documentation\n- Outside tolerance\n- From an **unapproved supplier**\n\n---\n\n### ⚠️ Important Reminders\n- Quality inspectors must follow the **approved sampling plan** for each material category. Critical components require **increased sampling frequency**.\n- **Rejected materials** must be moved to the designated quarantine area and tagged with a **hold tag** — they cannot be used until QA formally releases them.\n- As a floor supervisor, you must **not use uninspected or quarantined materials** to keep production running. If production is at risk, escalate to **Quality Assurance and Planning**.",
+  "cited": [
+   "incoming_material_inspection_standard.docx"
+  ],
+  "expected_sources": [
+   "incoming_material_inspection_standard.docx"
+  ],
+  "whole_answer_hhem": 0.7626
+ },
+ {
+  "run": "run1",
+  "id": "quarantine-process-for-rejected-lots",
+  "question": "If a lot fails incoming inspection, what is the required quarantine process: where must we place the rejected materials, how must they be labeled, and who must release them before they can be used in production?",
+  "answer": "Here is the required quarantine process for a lot that fails incoming inspection, per the **Incoming Material Inspection Standard (Revision 2026.03)**[1]:\n\n| Requirement | What the Standard Says |\n|---|---|\n| **Where to place** | Rejected materials must be moved to the **designated quarantine area** |\n| **How to label** | Materials must be labeled with a **hold tag** |\n| **Who must release** | **Quality Assurance** must release the material before it can be used in production |\n\nA few additional points to keep in mind[1]:\n\n- **No exceptions for production urgency** — floor supervisors must **not** use quarantined materials to keep production running, even if it puts output at risk.\n- **Proper escalation path** — if production is threatened, supervisors must escalate to **Quality Assurance and Planning** rather than pulling quarantined material.",
+  "cited": [
+   "incoming_material_inspection_standard.docx"
+  ],
+  "expected_sources": [
+   "incoming_material_inspection_standard.docx"
+  ],
+  "whole_answer_hhem": 0.1742
+ },
+ {
+  "run": "run1",
+  "id": "line-clearance-triggers-during-changeover",
+  "question": "During changeover, what events require us to perform line clearance before restarting production? Please list all the triggers.",
+  "answer": "Based on the **Production Line Clearance Standard (Revision 2026.03)**[1], line clearance is required before restarting production whenever any of the following changeover events occur:\n\n---\n\n### ✅ Line Clearance Triggers\n\n| # | Event |\n|---|-------|\n| 1 | **Starting a new product** |\n| 2 | **Starting a new lot** |\n| 3 | **Starting a new work order** |\n| 4 | **Changing the packaging configuration** |\n| 5 | **Changing the label set** |\n| 6 | **Starting a customer-specific build** |\n\n---\n\nIn short, any time the **product, lot, work order, packaging, labels, or customer build** changes, a full line clearance must be completed before production restarts. The floor supervisor must complete the line clearance checklist, and **Quality Assurance approval is additionally required** for regulated or customer-critical products.[1]",
+  "cited": [
+   "line_clearance_standard.docx"
+  ],
+  "expected_sources": [
+   "line_clearance_standard.docx"
+  ],
+  "whole_answer_hhem": 0.4193
+ },
+ {
+  "run": "run1",
+  "id": "steps-if-line-clearance-error-found",
+  "question": "If we discover a line clearance error after changeover (for example, old labels left at the workstation), what immediate steps are required before restarting the line?",
+  "answer": "Based on the **Production Line Clearance Standard** (Revision 2026.03), here are the required immediate steps when a line clearance error is discovered after changeover — such as old labels left at the workstation[1]:\n\n---\n\n### ⛔ Immediate Steps Before Restarting the Line\n\n1. **Stop the line** — Production must halt immediately upon discovery of the error.\n2. **Segregate affected product** — Any product that may have been impacted by the clearance failure must be physically separated and held.\n3. **Notify Quality Assurance** — QA must be informed of the issue before any restart is authorized. *(Note: QA approval is required for regulated or customer-critical products.)*\n4. **Document the issue** — The error must be formally documented before the line is restarted.\n\n---\n\n### 🔁 Before Restarting\n\nThe floor supervisor must ensure the original clearance checks are completed correctly, including[1]:\n\n- Removing all previous labels, cartons, inserts, and packaging materials\n- Verifying the correct work order number, product code/revision, lot number, and labels\n- Confirming tools and fixtures match the new build\n- Obtaining documented supervisor **and** Quality Assurance approval\n\nOld labels left at the workstation is explicitly listed as a **Common Line Clearance Failure** in the standard, so this scenario falls squarely under the \"If an Error Is Found\" protocol[1]. Do not restart the line until all four steps above are completed and approvals are in place.",
+  "cited": [
+   "line_clearance_standard.docx"
+  ],
+  "expected_sources": [
+   "line_clearance_standard.docx"
+  ],
+  "whole_answer_hhem": 0.4108
+ },
+ {
+  "run": "run1",
+  "id": "supervisor-lock-removal-exception-steps",
+  "question": "If a maintenance technician who applied a lock is unavailable, what steps must a floor supervisor follow before removing the lock under the lockout tagout exception process?",
+  "answer": "According to the **Lockout Tagout Procedure** (Revision 2026.01)[1], a floor supervisor must complete the following four steps under the **Exception Process** before removing a lock applied by an unavailable maintenance technician:\n\n1. **Contact Plant Safety** — The supervisor must reach out to Plant Safety before taking any action.\n2. **Verify the employee is not on site** — The supervisor must confirm that the technician who applied the lock is genuinely unavailable and not present at the facility.\n3. **Inspect the equipment** — The supervisor must physically inspect the equipment to assess the situation.\n4. **Document approval** — The supervisor must document the approval before the lock is removed.\n\n> ⚠️ **Important:** Supervisors may **not** remove another employee's lock unless this formal lock removal exception process is fully completed. Additionally, production urgency is never a valid reason to bypass lockout/tagout — hazardous energy control requirements always take priority[1].",
+  "cited": [
+   "lockout_tagout_procedure.docx"
+  ],
+  "expected_sources": [
+   "lockout_tagout_procedure.docx"
+  ],
+  "whole_answer_hhem": 0.5938
+ },
+ {
+  "run": "run1",
+  "id": "verify-zero-energy-procedure",
+  "question": "When a line operator services powered production equipment under lockout tagout, how exactly should they verify zero energy per the procedure?",
+  "answer": "Per the **Lockout Tagout Procedure (Revision 2026.01)**[1], zero energy verification is **Step 7 of 8** in the required sequence. Here's exactly how it must be done and the full context around it:\n\n---\n\n### Zero Energy Verification — Exact Steps\n\nBefore reaching Step 7, the following must already be completed:\n\n1. **Notify** affected employees that the equipment will be shut down.\n2. **Identify all energy sources** — electrical, pneumatic, hydraulic, thermal, and stored mechanical energy.\n3. **Shut down** the equipment using the normal stop procedure.\n4. **Isolate** the equipment from all energy sources.\n5. **Apply an approved lock and tag** to each energy isolation point.\n6. **Release or restrain stored energy.**\n\nThen:\n\n> **Step 7 — Verify zero energy:** Attempt to start the equipment using the **normal controls**.\n> **Step 8 — Return controls to the off position** after verification is complete.\n\n---\n\n### Key Points\n\n- The verification method is specifically to **attempt a normal start** — this confirms the isolation has actually cut all energy and the equipment cannot start.\n- Controls **must be returned to the off position** immediately after the attempt; don't leave them in the start position.\n- This procedure applies to **line operators** (along with floor supervisors and maintenance technicians)[1].\n- **Production urgency never overrides this requirement** — bypassing LOTO to save production time is explicitly prohibited[1].",
+  "cited": [
+   "lockout_tagout_procedure.docx"
+  ],
+  "expected_sources": [
+   "lockout_tagout_procedure.docx"
+  ],
+  "whole_answer_hhem": 0.5359
+ },
+ {
+  "run": "run2",
+  "id": "line-2-daily-startup-inspection-items",
+  "question": "For Line 2 belt conveyors, what must operators check during the daily inspection before startup?",
+  "answer": "According to the **Conveyor Preventive Maintenance Manual** (Revision 2026.02), which applies to Line 2 conveyors[1], operators must inspect the following **before startup** during the daily inspection:\n\n1. **Unusual noise** — listen for any abnormal sounds\n2. **Belt damage** — visually check the belt for tears, fraying, or other damage\n3. **Loose fasteners** — verify that fasteners are secure\n4. **Foreign objects** — ensure no foreign objects are on or around the conveyor\n5. **Visible guarding issues** — confirm all guards are in place and intact\n\n> ⚠️ Any abnormal condition identified must be **reported to maintenance** before the conveyor is put into service.",
+  "cited": [
+   "conveyor_pm_manual.docx"
+  ],
+  "expected_sources": [
+   "conveyor_pm_manual.docx"
+  ],
+  "whole_answer_hhem": 0.3542
+ },
+ {
+  "run": "run2",
+  "id": "emergency-stop-testing-and-failure-action",
+  "question": "How often must emergency stop pull cords and buttons on the conveyors be tested, and what must be done if any device fails?",
+  "answer": "Based on the **Conveyor Preventive Maintenance Manual** [1], here are the answers:\n\n**Testing Frequency:**\nEmergency stop pull cords and buttons on the conveyors must be tested **weekly**.\n\n**If a Device Fails:**\nIf any emergency stop device fails, **the conveyor must be removed from service until repaired**.",
+  "cited": [
+   "conveyor_pm_manual.docx"
+  ],
+  "expected_sources": [
+   "conveyor_pm_manual.docx"
+  ],
+  "whole_answer_hhem": 0.9593
+ },
+ {
+  "run": "run2",
+  "id": "hydraulic-press-oil-leak-response",
+  "question": "I found oil under a hydraulic press HP-120 on the floor. What immediate steps should I take according to the Hydraulic Press Troubleshooting Guide?",
+  "answer": "According to the **Hydraulic Press Troubleshooting Guide** (Revision 2026.02, which applies to units HP-100 through HP-140, including your HP-120)[1], here are the immediate steps you should take under the **Oil Leak Response** section:\n\n1. **Stop the machine** — Shut down the hydraulic press immediately.\n2. **Notify maintenance** — Alert the maintenance team about the active hydraulic leak.\n3. **Do not operate the press** — The press must not be run while there is an active hydraulic leak.\n4. **Use absorbent pads** — Place absorbent pads on the oil spill.\n5. **Follow spill response procedures** — Carry out your site's standard spill response protocol.\n\n> ⚠️ **Important:** As a floor supervisor, you may request maintenance support, but you are **not authorized** to bypass pressure limits, guards, interlocks, or safety devices[1].\n\nThe press should only be returned to production after maintenance has verified guard placement, pressure settings, leak-free operation, emergency stop function, and a successful dry cycle test[1].",
+  "cited": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "expected_sources": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "whole_answer_hhem": 0.6436
+ },
+ {
+  "run": "run2",
+  "id": "hydraulic-press-restart-verifications",
+  "question": "Before returning a hydraulic press to production after maintenance, what must maintenance verify?",
+  "answer": "Based on the **Hydraulic Press Troubleshooting Guide** [1], before returning a hydraulic press to production after maintenance, maintenance must verify all of the following:\n\n1. **Guard placement** — All guards are correctly installed and in position.\n2. **Pressure settings** — Pressure is set to the correct target values.\n3. **Leak-free operation** — There are no active hydraulic leaks.\n4. **Emergency stop function** — The emergency stop is tested and functioning properly.\n5. **Successful dry cycle testing** — The press completes a dry cycle (no production load) without issue.\n\nAll five of these items must be confirmed before the press is released back to production.",
+  "cited": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "expected_sources": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "whole_answer_hhem": 0.1616
+ },
+ {
+  "run": "run2",
+  "id": "containment-steps-repeated-defects",
+  "question": "If repeated defects are found in a finished goods lot before shipment, what containment steps are required?",
+  "answer": "According to the **Finished Goods Defect Classification Standard** (Revision 2026.03)[1], if repeated defects are found in a finished goods lot before shipment, the supervisor must take the following four containment steps:\n\n1. **Stop shipment** of the affected lot.\n2. **Notify Quality Assurance.**\n3. **Identify the last known good unit.**\n4. **Begin containment.**\n\nAdditionally, if any rework is required as part of the response:\n- Rework must follow **approved work instructions**.\n- All reworked product must be **reinspected before release**.\n\nThese steps apply to production operators, floor supervisors, and quality inspectors.",
+  "cited": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "expected_sources": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "whole_answer_hhem": 0.8802
+ },
+ {
+  "run": "run2",
+  "id": "classification-failed-packaging-seal",
+  "question": "How should a failed packaging seal on a finished good be classified, and what action is required before release?",
+  "answer": "Based on the **Finished Goods Defect Classification Standard**, here is the answer:\n\n---\n\n## Classification: **Major Defect**\n\nA failed packaging seal on a finished good is classified as a **Major Defect** — defined as a defect that affects product function, fit, performance, customer usability, or appearance beyond approved limits.[1]\n\n---\n\n## Required Action Before Release\n\nBecause it is a Major Defect, the following is required:[1]\n\n1. **Supervisor review** must be conducted.\n2. The product must undergo **possible rework or rejection** — it cannot simply be passed through.\n3. If rework is performed, it **must follow approved work instructions**.\n4. **Reworked product must be reinspected before release** — it cannot be shipped without passing reinspection.\n\nAdditionally, if repeated failed packaging seals are found across the lot, the supervisor must:[1]\n- **Stop shipment** of the affected lot\n- **Notify Quality Assurance**\n- **Identify the last known good unit**\n- **Begin containment**\n\nIn short: a failed packaging seal cannot be released as-is. It requires supervisor review, and if reworked, a full reinspection before it can ship.",
+  "cited": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "expected_sources": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "whole_answer_hhem": 0.6129
+ },
+ {
+  "run": "run2",
+  "id": "verify-incoming-inspection-items",
+  "question": "At receiving, which specific items must I verify during incoming inspection before releasing raw materials to production?",
+  "answer": "Based on the **Incoming Material Inspection Standard** (Revision 2026.03)[1], here are the specific items you must verify during incoming inspection before releasing raw materials to production:\n\n---\n\n### ✅ Incoming Inspection Verification Checklist\n\n| # | Item to Verify |\n|---|----------------|\n| 1 | **Supplier name** — confirm it matches an approved supplier |\n| 2 | **Purchase order** — verify the shipment matches the PO |\n| 3 | **Lot number** — confirm it is present and correctly identified |\n| 4 | **Certificate of Analysis (CoA)** — required when specified for the material |\n| 5 | **Quantity** — verify the received quantity matches the PO |\n| 6 | **Packaging condition** — inspect for damage, integrity, and proper sealing |\n| 7 | **Visible damage** — check for any physical damage to materials |\n\n---\n\n### ⚠️ Important Rules\n\n- **Sampling:** Follow the approved sampling plan for each material category. Critical components require **increased** sampling frequency, and materials with prior supplier issues require **tightened** inspection.\n- **Reject/Quarantine** if materials are: damaged, mislabeled, contaminated, missing required documentation, outside tolerance, or from an **unapproved supplier**.\n- Rejected materials must go to the **designated quarantine area** with a **hold tag** and cannot be used in production until **Quality Assurance releases them**.\n- **Floor supervisors must not use uninspected or quarantined materials** to keep production running — escalate to QA and Planning if production is at risk.",
+  "cited": [
+   "incoming_material_inspection_standard.docx"
+  ],
+  "expected_sources": [
+   "incoming_material_inspection_standard.docx"
+  ],
+  "whole_answer_hhem": 0.5401
+ },
+ {
+  "run": "run2",
+  "id": "quarantine-process-for-rejected-lots",
+  "question": "If a lot fails incoming inspection, what is the required quarantine process: where must we place the rejected materials, how must they be labeled, and who must release them before they can be used in production?",
+  "answer": "Here is the complete required quarantine process from the **Incoming Material Inspection Standard** (Revision 2026.03)[1]:\n\n---\n\n### Quarantine Process for Failed Incoming Inspection\n\n| Requirement | Detail |\n|---|---|\n| **Where to place rejected materials** | Moved to the **designated quarantine area** |\n| **How to label them** | Applied with a **hold tag** |\n| **Who must release them** | **Quality Assurance** must release the material before it can be used in production |\n\n**Key rule for supervisors:** Floor supervisors must **not** use uninspected or quarantined materials to keep production running. If production is at risk, the supervisor must escalate to **Quality Assurance and Planning** — they cannot make the call to release quarantined material themselves[1].",
+  "cited": [
+   "incoming_material_inspection_standard.docx"
+  ],
+  "expected_sources": [
+   "incoming_material_inspection_standard.docx"
+  ],
+  "whole_answer_hhem": 0.4982
+ },
+ {
+  "run": "run2",
+  "id": "line-clearance-triggers-during-changeover",
+  "question": "During changeover, what events require us to perform line clearance before restarting production? Please list all the triggers.",
+  "answer": "According to the **Production Line Clearance Standard** (Revision 2026.03)[1], line clearance is required before restarting production whenever any of the following changeover events occurs:\n\n| # | Trigger Event |\n|---|---------------|\n| 1 | **Starting a new product** |\n| 2 | **Starting a new lot** |\n| 3 | **Starting a new work order** |\n| 4 | **Changing the packaging configuration** |\n| 5 | **Changing the label set** |\n| 6 | **Starting a customer-specific build** |\n\nIn short — any time the product, lot, work order, packaging, labels, or customer build changes, a full line clearance must be completed before production restarts[1].\n\nA few important reminders from the standard[1]:\n- The **floor supervisor** must complete the line clearance checklist before allowing restart.\n- **Quality Assurance approval** is additionally required for regulated or customer-critical products.\n- If an error is found during clearance, **stop the line, segregate affected product, notify QA, and document the issue** before restarting.",
+  "cited": [
+   "line_clearance_standard.docx"
+  ],
+  "expected_sources": [
+   "line_clearance_standard.docx"
+  ],
+  "whole_answer_hhem": 0.6348
+ },
+ {
+  "run": "run2",
+  "id": "steps-if-line-clearance-error-found",
+  "question": "If we discover a line clearance error after changeover (for example, old labels left at the workstation), what immediate steps are required before restarting the line?",
+  "answer": "According to the **Production Line Clearance Standard** (Revision 2026.03)[1], if a line clearance error is discovered after changeover — such as old labels left at the workstation — the following immediate steps are required **before restarting the line**:\n\n---\n\n### ⚠️ Immediate Steps When a Line Clearance Error Is Found\n\n1. **Stop the line** — Production must halt immediately upon discovery of the error.\n2. **Segregate affected product** — Any product that may have been impacted by the error must be set aside and isolated.\n3. **Notify Quality Assurance** — QA must be informed of the issue (QA approval is specifically required for regulated or customer-critical products).\n4. **Document the issue** — The error must be formally recorded before any restart is authorized.\n\n---\n\n### 🔁 Before Restarting — Re-Verify Line Clearance Checks\n\nOnce the error is addressed, the full clearance checklist must be re-confirmed[1]:\n\n- Remove all previous product, labels, cartons, inserts, and packaging materials\n- Verify the new work order number, product code/revision, and lot number\n- Verify correct labels and packaging materials are staged\n- Confirm tools and fixtures match the new build\n- Obtain documented supervisor **and** Quality Assurance approval\n\nThe floor supervisor is responsible for completing the line clearance checklist, and **production cannot restart without that sign-off**[1].",
+  "cited": [
+   "line_clearance_standard.docx"
+  ],
+  "expected_sources": [
+   "line_clearance_standard.docx"
+  ],
+  "whole_answer_hhem": 0.3331
+ },
+ {
+  "run": "run2",
+  "id": "supervisor-lock-removal-exception-steps",
+  "question": "If a maintenance technician who applied a lock is unavailable, what steps must a floor supervisor follow before removing the lock under the lockout tagout exception process?",
+  "answer": "According to the **Lockout Tagout Procedure** (Revision 2026.01)[1], a floor supervisor **may not remove another employee's lock** unless the formal lock removal exception process is completed. When the technician who applied the lock is unavailable, the supervisor must complete all four of the following steps **before** removing the lock:\n\n1. **Contact Plant Safety** — Notify and involve the Plant Safety department.\n2. **Verify the employee is not on site** — Confirm that the technician who applied the lock is genuinely unavailable and not present on the premises.\n3. **Inspect the equipment** — Physically inspect the equipment to assess its condition and ensure it is safe to proceed.\n4. **Document approval** — Obtain and record formal approval before the lock is removed.\n\n> ⚠️ **Important:** The procedure explicitly states that production urgency **does not** override hazardous energy control requirements. A lock must never be bypassed or removed simply to save production time.",
+  "cited": [
+   "lockout_tagout_procedure.docx"
+  ],
+  "expected_sources": [
+   "lockout_tagout_procedure.docx"
+  ],
+  "whole_answer_hhem": 0.654
+ },
+ {
+  "run": "run2",
+  "id": "verify-zero-energy-procedure",
+  "question": "When a line operator services powered production equipment under lockout tagout, how exactly should they verify zero energy per the procedure?",
+  "answer": "Per the **Lockout Tagout Procedure** (Revision 2026.01)[1], zero energy verification for a line operator servicing powered production equipment is a two-step action that must be performed **after** stored energy has been released or restrained:\n\n**Step 7 — Verify Zero Energy:**\n> **Attempt to start the equipment using the normal controls.**\n\nThis confirms that all energy isolation points are properly locked and tagged and that no energy remains that could cause unexpected startup.\n\n**Step 8 — Return Controls to Off:**\n> **Return the controls to the off position after verification.**\n\nThis ensures the controls are not left in a \"start\" state once the zero-energy check is complete.\n\n### Full Context — Where This Fits in the Sequence\nZero energy verification is the final safety confirmation before work begins. The complete required steps leading up to it are:\n\n1. Notify affected employees that the equipment will be shut down.\n2. Identify **all** energy sources (electrical, pneumatic, hydraulic, thermal, and stored mechanical).\n3. Shut down the equipment using the normal stop procedure.\n4. Isolate the equipment from all energy sources.\n5. Apply an approved lock and tag to **each** energy isolation point.\n6. Release or restrain stored energy.\n7. ✅ **Verify zero energy** — attempt to start via normal controls.\n8. ✅ Return controls to the off position.\n\n> ⚠️ **Important:** The procedure explicitly states that production urgency does **never** override these hazardous energy control requirements — LOTO must never be bypassed to save production time[1].",
+  "cited": [
+   "lockout_tagout_procedure.docx"
+  ],
+  "expected_sources": [
+   "lockout_tagout_procedure.docx"
+  ],
+  "whole_answer_hhem": 0.791
+ },
+ {
+  "run": "run3",
+  "id": "line-2-daily-startup-inspection-items",
+  "question": "For Line 2 belt conveyors, what must operators check during the daily inspection before startup?",
+  "answer": "According to the **Conveyor Preventive Maintenance Manual** (Revision 2026.02, which applies to Line 1, Line 2, and Line 3 conveyors), operators must inspect the following before startup during the **daily inspection**[1]:\n\n1. **Unusual noise** — listen for any abnormal sounds\n2. **Belt damage** — visually check the belt for tears, wear, or other damage\n3. **Loose fasteners** — ensure all fasteners are properly secured\n4. **Foreign objects** — look for anything on or around the conveyor that shouldn't be there\n5. **Visible guarding issues** — confirm all guards are in place and intact\n\n> Any abnormal condition found must be **reported to maintenance**.[1]",
+  "cited": [
+   "conveyor_pm_manual.docx"
+  ],
+  "expected_sources": [
+   "conveyor_pm_manual.docx"
+  ],
+  "whole_answer_hhem": 0.4814
+ },
+ {
+  "run": "run3",
+  "id": "emergency-stop-testing-and-failure-action",
+  "question": "How often must emergency stop pull cords and buttons on the conveyors be tested, and what must be done if any device fails?",
+  "answer": "Based on the **Conveyor Preventive Maintenance Manual**[1], here is the answer:\n\n---\n\n### Emergency Stop Pull Cords & Buttons — Testing & Failure Response\n\n**Testing Frequency:**\nEmergency stop pull cords and buttons must be tested **weekly** as part of the weekly maintenance inspection performed by maintenance technicians.\n\n**If a Device Fails:**\nIf any emergency stop device fails, **the conveyor must be removed from service until it is repaired.** The conveyor cannot be returned to operation until the faulty device has been fixed.",
+  "cited": [
+   "conveyor_pm_manual.docx"
+  ],
+  "expected_sources": [
+   "conveyor_pm_manual.docx"
+  ],
+  "whole_answer_hhem": 0.4044
+ },
+ {
+  "run": "run3",
+  "id": "hydraulic-press-oil-leak-response",
+  "question": "I found oil under a hydraulic press HP-120 on the floor. What immediate steps should I take according to the Hydraulic Press Troubleshooting Guide?",
+  "answer": "According to the **Hydraulic Press Troubleshooting Guide** (applies to HP-100 through HP-140, including your HP-120)[1], here are the immediate steps you should take under the **Oil Leak Response** section:\n\n1. **Stop the machine** — Shut down HP-120 immediately.\n2. **Notify maintenance** — Contact the maintenance team right away.\n3. **Do not operate the press** — The press must not be run while there is an active hydraulic leak.\n4. **Use absorbent pads** — Place absorbent pads on the oil spill to contain it.\n5. **Follow spill response procedures** — Carry out your site's standard spill response protocol.\n\n> ⚠️ **Important:** The guide explicitly states — *\"Do not operate the press with active hydraulic leaks.\"* Only maintenance personnel should assess and repair the source of the leak. As a floor supervisor, you can request maintenance support but cannot authorize bypassing any pressure limits, guards, interlocks, or safety devices[1].",
+  "cited": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "expected_sources": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "whole_answer_hhem": 0.5596
+ },
+ {
+  "run": "run3",
+  "id": "hydraulic-press-restart-verifications",
+  "question": "Before returning a hydraulic press to production after maintenance, what must maintenance verify?",
+  "answer": "Based on the **Hydraulic Press Troubleshooting Guide** [1], before returning a hydraulic press to production after maintenance, maintenance must verify all of the following:\n\n1. **Guard placement** — All guards must be properly positioned.\n2. **Pressure settings** — Pressure must be confirmed at the correct target settings.\n3. **Leak-free operation** — The press must show no hydraulic leaks.\n4. **Emergency stop function** — The emergency stop must be tested and confirmed operational.\n5. **Successful dry cycle testing** — The press must complete a dry cycle (without production parts) successfully before returning to service.\n\nThis applies to hydraulic press units **HP-100 through HP-140**. All five items must be verified — none can be skipped.",
+  "cited": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "expected_sources": [
+   "hydraulic_press_troubleshooting.docx"
+  ],
+  "whole_answer_hhem": 0.0725
+ },
+ {
+  "run": "run3",
+  "id": "containment-steps-repeated-defects",
+  "question": "If repeated defects are found in a finished goods lot before shipment, what containment steps are required?",
+  "answer": "Based on the **Finished Goods Defect Classification Standard** (Revision 2026.03), when repeated defects are found in a finished goods lot before shipment, the supervisor must take the following four containment steps[1]:\n\n1. **Stop shipment** of the affected lot immediately.\n2. **Notify Quality Assurance.**\n3. **Identify the last known good unit.**\n4. **Begin containment.**\n\nAdditionally, if any rework is required as part of the response[1]:\n- Rework must follow **approved work instructions**.\n- All reworked product must be **reinspected before release**.\n\nThese steps apply to production operators, floor supervisors, and quality inspectors. If the defects are **critical** (e.g., safety risk, regulatory issue, product failure), an immediate hold and QA escalation are also required[1].",
+  "cited": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "expected_sources": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "whole_answer_hhem": 0.8938
+ },
+ {
+  "run": "run3",
+  "id": "classification-failed-packaging-seal",
+  "question": "How should a failed packaging seal on a finished good be classified, and what action is required before release?",
+  "answer": "Based on the **Finished Goods Defect Classification Standard** [1], here is the answer:\n\n---\n\n### Classification: **Major Defect**\n\nA failed packaging seal on a finished good is classified as a **Major Defect** — defined as a defect that affects product function, fit, performance, customer usability, or appearance beyond approved limits.\n\n---\n\n### Required Action Before Release: **Rework + Reinspection**\n\nBefore the product can be released:\n\n1. **Supervisor review** must be conducted, with a determination of whether to **rework or reject** the unit.\n2. If reworked, the rework must follow **approved work instructions**.\n3. The reworked product **must be reinspected** before it is released for shipment.\n\n---\n\n### Additional Note — Containment Trigger:\nIf the failed packaging seal is part of a **pattern of repeated defects**, the supervisor must:\n- **Stop shipment** of the affected lot\n- **Notify Quality Assurance**\n- **Identify the last known good unit**\n- **Begin containment**",
+  "cited": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "expected_sources": [
+   "finished_goods_defect_standard.docx"
+  ],
+  "whole_answer_hhem": 0.6038
+ }
+]

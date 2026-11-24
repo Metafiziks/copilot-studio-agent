@@ -41,6 +41,9 @@ jobs:
       - name: HHEM self-test
         run: python scripts/hhem.py selftest
 
+      - name: Re-score the saved agent answers (whole answer vs claim by claim)
+        run: python scripts/hhem.py rescore tests/fixtures/agent_answers.json
+
       - name: LLM judge self-test (only when a judge key is configured)
         if: env.JUDGE_API_KEY != ''
         run: python scripts/judge.py selftest

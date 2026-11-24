@@ -19,6 +19,7 @@ Install (CPU PyTorch is far smaller than the default wheel):
 
 Usage:
   python scripts/hhem.py selftest                      # prove it scores consistent / invented / off-topic correctly
+  python scripts/hhem.py rescore [answers.json]        # re-score saved answers whole vs claim by claim, no agent credits
   python scripts/hhem.py score "premise text" "answer text"
 """
 
@@ -74,6 +75,39 @@ def clean_answer(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+META_LEAD = re.compile(r"^(according to|based on|per the|here (is|are)|below (is|are)|the following)\b", re.I)
+
+
+def split_claims(text: str) -> list[str]:
+    """The answer as individual claims: one per sentence or list item, with lead-ins and labels dropped.
+
+    HHEM was trained on short summaries, so a long multi-item answer scored in one pass is unreliable (one
+    correct answer scored 0.31, 0.16 and 0.07 on three runs). Scoring each claim against the source and
+    aggregating is the standard remedy.
+    """
+    text = re.sub(r"\[\d+\]|\[[^\]]*\]\(https?://[^)]*\)|https?://\S+", "", text)
+    claims = []
+    for line in text.splitlines():
+        line = clean_answer(line)
+        for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", line):
+            sentence = sentence.strip()
+            if len(sentence.split()) < 4:                          # headings, labels, "Yes."
+                continue
+            if META_LEAD.match(sentence) and sentence.endswith(":"):   # "Based on the guide, here is the answer:"
+                continue
+            claims.append(sentence)
+    return claims
+
+
+def score_claims(premise: str, answer: str, model=None) -> dict:
+    """Score each claim in the answer against the premise. Falls back to the whole answer if none are found."""
+    claims = split_claims(answer) or [clean_answer(answer)]
+    values = score([(premise, claim) for claim in claims], model)
+    return {"score": round(sum(values) / len(values), 4), "min_claim": min(values),
+            "supported_share": round(sum(v >= CONSISTENT_AT for v in values) / len(values), 3),
+            "claims": [{"text": c[:160], "score": v} for c, v in zip(claims, values)]}
+
+
 def premise_documents(corpus: dict[str, str], cited: list[str], expected: list[str]) -> list[tuple[str, str]]:
     """The documents HHEM reads: the cited and expected ones, or the whole corpus if none match."""
     wanted = {judge.stem(n) for n in list(cited) + list(expected)}
@@ -111,15 +145,48 @@ def selftest(model=None) -> dict:
             "model": f"{MODEL_ID}@{MODEL_REVISION[:8]}"}
 
 
+def rescore(path: str, docs_dir: str = "docs") -> int:
+    """Re-score saved answers (tests/fixtures/agent_answers.json) whole vs claim by claim. Costs no agent credits."""
+    import statistics
+    from pathlib import Path
+
+    corpus = judge.load_corpus(Path(docs_dir))
+    rows = json.loads(Path(path).read_text(encoding="utf-8"))
+    model = load_model()
+    out = []
+    for row in rows:
+        premise = build_premise(premise_documents(corpus, row["cited"], row["expected_sources"]))
+        whole = score([(premise, row["answer"])], model)[0]
+        claim = score_claims(premise, row["answer"], model)
+        out.append({"run": row["run"], "id": row["id"], "whole": whole, "claims": len(claim["claims"]),
+                    "mean": claim["score"], "min_claim": claim["min_claim"], "supported": claim["supported_share"],
+                    "worst_claim": min(claim["claims"], key=lambda c: c["score"])})
+        print(f"{row['run']} {row['id'][:44]:44} whole={whole:.2f} claims={len(claim['claims']):2d} mean={claim['score']:.2f} "
+              f"min={claim['min_claim']:.2f} supported={claim['supported_share']:.2f}", flush=True)
+    for run in sorted({r["run"] for r in out}):
+        sel = [r for r in out if r["run"] == run]
+        print(f"{run}: whole-answer mean {statistics.mean(r['whole'] for r in sel):.3f} | claim-level mean "
+              f"{statistics.mean(r['mean'] for r in sel):.3f} | supported share {statistics.mean(r['supported'] for r in sel):.3f} "
+              f"| worst answer (claim mean) {min(r['mean'] for r in sel):.3f}")
+    print("\nlowest-scoring claims:")
+    for r in sorted(out, key=lambda r: r["worst_claim"]["score"])[:6]:
+        print(f"  {r['worst_claim']['score']:.2f}  [{r['id'][:30]}] {r['worst_claim']['text']}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="command", required=True)
+    again = sub.add_parser("rescore", help="re-score saved answers whole vs claim by claim (no agent credits)")
+    again.add_argument("path", nargs="?", default="tests/fixtures/agent_answers.json")
     sub.add_parser("selftest", help="check HHEM scores consistent, invented and off-topic answers correctly")
     one = sub.add_parser("score", help="score one answer against a premise")
     one.add_argument("premise")
     one.add_argument("answer")
     args = parser.parse_args()
     try:
+        if args.command == "rescore":
+            return rescore(args.path)
         if args.command == "selftest":
             result = selftest()
             print(json.dumps(result, indent=2))

@@ -12,8 +12,9 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > per-user restriction at site and document level (two users, side by side), CI and OIDC deploy, and a
 > **passing scored eval** (keyword recall 0.99, citation recall 1.00, p95 25.7 s, memory recall 1.00, run
 > as a licensed user), and **telemetry** (environment-level export to Application Insights, verified).
-> **Faithfulness is scored with HHEM**, an open model that runs in CI with no key (claim-level mean 0.68,
-> 0.65 and 0.61 on three full runs, gated at 0.50; it is a strict trend metric, see Evaluations). An **LLM judge** for relevance and completeness is built and unit-tested but has **never
+> **Faithfulness is scored with HHEM**, an open model that runs in CI with no key. It found the agent
+> elaborating beyond the documents (claim-level mean 0.61 to 0.68); tightening the instructions raised it to
+> 0.77, gated at 0.65. It is a strict trend metric (see Evaluations). An **LLM judge** for relevance and completeness is built and unit-tested but has **never
 > run against a live model**: it needs a key you provide. Copilot Studio's built-in graders reject this agent
 > type (see Evaluations). **Not built:** anomaly detection.
 > **Two things will silently break it:** a user without a SharePoint-bearing license, and a brand-new
@@ -122,20 +123,22 @@ export AGENT_TOKEN_CACHE=.build/token_cache_eval.json     # one sign-in per test
 
 Thresholds match the Azure template where a counterpart exists: keyword recall ≥ 0.65, citation recall
 ≥ 0.60, p95 ≤ 45 s, memory recall = 1.0, and any failed call or empty answer fails the run. The HHEM gate is
-this repo's own (claim-level mean ≥ 0.50), calibrated on three runs. The caller must
+this repo's own (claim-level mean ≥ 0.65), calibrated on the runs below. The caller must
 be a **real user with a SharePoint-bearing license**, who is a member of the knowledge site and has the
 agent shared with them (**Can use**): the agent retrieves SharePoint as the signed-in user, an app-only
 caller has none, and for an unlicensed user every question comes back "not found".
 
-**Result** (Jane, licensed; dev agent; sample corpus in the main site):
+**Result** (Jane, licensed; sample corpus), before and after tightening the agent's instructions (see Faithfulness
+and quality scoring):
 
-| Metric | Result | Gate |
-|---|---|---|
-| Keyword recall | **0.986** (11 of 12 cases 1.00; one 0.83) | ≥ 0.65, passes |
-| Citation recall | **1.000** (the right file named in every reply) | ≥ 0.60, passes |
-| p95 latency | **25.7 s** | ≤ 45 s, passes |
-| Memory recall | **1.00** | = 1.0, passes |
-| Failed calls | 0 | 0, passes |
+| Metric | Before (dev) | After (e2e) | Gate |
+|---|---|---|---|
+| Keyword recall | **0.986** | **0.924** | ≥ 0.65, passes |
+| Citation recall | **1.000** | **1.000** | ≥ 0.60, passes |
+| p95 latency | **25.7 s** | **29.2 s** | ≤ 45 s, passes |
+| Memory recall | **1.00** | **1.00** | = 1.0, passes |
+| HHEM claim-level mean | 0.61 to 0.68 | **0.77** (measured on the same answers in CI) | ≥ 0.65, passes |
+| Failed calls | 0 | 0 | 0, passes |
 
 **How it got here (so you do not repeat it).** The first run, against the e2e site, scored 0.06 and 0.0.
 The cause was not the agent being wrong. Two checks had been misleading:
@@ -159,7 +162,7 @@ documents in `docs/`:
 
 | Scorer | What it measures | Needs | Status |
 |---|---|---|---|
-| **HHEM** (`scripts/hhem.py`) | Probability (0 to 1) that each claim in an answer is consistent with its source documents, averaged. Vectara's HHEM-2.1-open: Apache-2.0, pinned revision, runs on CPU | PyTorch (`requirements-hhem.txt`); no key | **Running in CI.** Gate: claim-level mean ≥ 0.50; the worst single answer is reported, not gated |
+| **HHEM** (`scripts/hhem.py`) | Probability (0 to 1) that each claim in an answer is consistent with its source documents, averaged. Vectara's HHEM-2.1-open: Apache-2.0, pinned revision, runs on CPU | PyTorch (`requirements-hhem.txt`); no key | **Running in CI.** Gate: claim-level mean ≥ 0.65; the worst single answer is reported, not gated |
 | **LLM judge** (`scripts/judge.py`) | Faithfulness, relevance and completeness, 1 to 5 each | `JUDGE_API_KEY` for any OpenAI-compatible endpoint | Built and covered by unit tests with a fake endpoint. **Never run against a live model**: GitHub Models is not served in this environment (it answers every request with a bare `OK`) and no key is configured |
 
 Each scorer must pass a **self-test** before it scores anything: HHEM scored a faithful answer 0.90, an
@@ -178,16 +181,31 @@ floor**; the lowest answer is reported and the gate is on the mean. Telling the 
 job, which is why that is the piece still to switch on. The weakest claims per answer are saved in
 `eval_results.json` under `hhem.weakest_claims`, so a low score can be read, not just trusted.
 
-The agent's instructions say to answer only from the documents, yet it elaborates; tightening them (use the
-documents' wording, add nothing) would raise the score. That is not changed here because it alters the
-agent's behaviour.
+**Fixing it: tighter instructions, measured.** The agent's instructions said to answer only from the
+documents, yet it elaborated. They now also say to use the documents' wording, add no explanations, examples or
+inferences, answer only what was asked with no preamble or extra warnings, cite the document, and say plainly
+which part is not covered (`agent/settings.mcs.yml`). Effect, from the full 12-answer runs below:
 
-| Full CI run (12 answers; the last row 6) | Whole answer | Claim by claim | Claims HHEM supports |
+- Faithfulness: the HHEM claim-level mean rose from 0.61 to 0.68 to **0.77**, and the share of claims HHEM
+  supports from 63 to 71% to **83%**. The weakest answer went from 0.28 to 0.36 to 0.44.
+- Answers are about **half as long** (about 500 characters against 800 to 1,000).
+- Citations: a first wording ("name the document once") scored higher still (0.84) but made two answers drop
+  their inline citation, so citation recall fell from 1.00 to 0.83; the final wording ("cite the document each
+  answer comes from") restored it to **1.00**.
+- Cost: keyword recall slipped from about 0.96 to **0.92** (the terser answers omit an item now and then; the
+  zero-energy answer went from 0.75 to 0.50). Still above its 0.65 gate. If completeness matters more than
+  tightness, relax the "answer exactly what was asked" sentence.
+
+Single runs vary (the agent words answers differently each time), so treat the 0.77 as a level, not a point.
+
+| Full run (12 answers; run 4 has 6) | Whole answer | Claim by claim | Claims HHEM supports |
 |---|---|---|---|
 | 1 | 0.55 | **0.68** | 71% |
 | 2 | 0.59 | **0.65** | 68% |
 | 3 | 0.50 | **0.61** | 63% |
 | 4 (6 answers, final code) | n/a | **0.58** | 60% |
+| 5, tightened instructions, "name the document once" (dev) | 0.78 | **0.84** | 91% |
+| 6, final instructions (e2e) | 0.78 | **0.77** | 83% |
 
 The three full runs' answers are saved in `tests/fixtures/agent_answers.json`, and
 `python scripts/hhem.py rescore` re-scores them (also a step of the `Scorer self-tests` workflow), so a change
@@ -235,12 +253,12 @@ How each Azure metric maps:
 
 | Azure metric | Copilot Studio | Status |
 |---|---|---|
-| Faithfulness (GPT-5 judge) | HHEM consistency (`scripts/hhem.py`); built-in General quality rejects this agent type | **0.68, 0.65, 0.61** (claim-level mean, three runs) |
+| Faithfulness (GPT-5 judge) | HHEM consistency (`scripts/hhem.py`); built-in General quality rejects this agent type | **0.61 to 0.68** before tightening the agent's instructions, **0.77** after (claim-level mean) |
 | Answer relevance (GPT-5 judge) | LLM judge (`scripts/judge.py`); built-in General quality rejects this agent type | Built and unit-tested; **not yet run** (needs `JUDGE_API_KEY`) |
-| Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.986** |
+| Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.924** (0.986 before the instructions were tightened) |
 | Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
-| p95 latency | `scripts/run_evals.py` | **25.7 s** |
-| HHEM hallucination score | `scripts/hhem.py`, the same model the Azure template uses | **Running in CI**; gate: claim-level mean ≥ 0.50 |
+| p95 latency | `scripts/run_evals.py` | **29.2 s** |
+| HHEM hallucination score | `scripts/hhem.py`, the same model the Azure template uses | **Running in CI**; gate: claim-level mean ≥ 0.65 |
 | Memory recall | `scripts/run_evals.py` | **1.00** |
 
 The built-in Evaluation REST API (`api.powerplatform.com/copilotstudio/.../makerevaluation/testsets/{id}/run`)
@@ -470,7 +488,7 @@ Set in `.env` (see `.env.example`).
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | Environment-level export to Application Insights verified on this agent (prompt, reply, search calls, user); Dataverse transcripts also hold harness conversations (see Observability) |
 | `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
-| HHEM scoring | Ran in CI on the agent's real answers (four runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; claim-level means 0.68, 0.65, 0.61 and 0.58, with the weakest claims being elaborations the documents lack and some harmless restatements. The LLM judge has only been run against a fake endpoint |
+| HHEM scoring | Ran in CI on the agent's real answers (six runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; claim-level means 0.68, 0.65, 0.61 and 0.58 before, 0.84 and 0.77 after tightening the agent's instructions. The weakest claims were elaborations the documents lack and some harmless restatements. The LLM judge has only been run against a fake endpoint |
 | New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 
 ## Troubleshooting

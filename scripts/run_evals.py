@@ -22,7 +22,7 @@ Deterministic metrics, computed here from real agent replies:
 Faithfulness and quality, scored against the source documents in docs/ (Copilot Studio's built-in Agent
 Evaluation rejects this agent type, README > Evaluations, so the scoring lives here):
 
-  HHEM mean       >= 0.50   scripts/hhem.py: each claim in an answer scored against its source documents, averaged.
+  HHEM mean       >= 0.65   scripts/hhem.py: each claim in an answer scored against its source documents, averaged.
                             A trend metric (strict about paraphrase); reports the share of supported claims. Needs
                             PyTorch, no key
   Judge faithfulness >= 0.85, relevance >= 0.85, completeness >= 0.60, min faithfulness >= 0.50
@@ -48,11 +48,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# Calibrated on three CI runs against the dev agent: the claim-level mean was 0.67, 0.65 and 0.61. HHEM is strict:
-# it flags any claim the source does not state outright, benign paraphrase included, so it is a TREND metric
-# (does the agent stay close to the documents?) and there is deliberately no per-answer floor: the same correct
-# answer scored 0.31, 0.16 and 0.07 across runs. Telling harmless paraphrase from fabrication is the LLM judge's job.
-HHEM_THRESHOLDS = {"hhem_mean": 0.50}
+# Calibrated on CI runs against the agent: before the instructions were tightened the claim-level mean was 0.68,
+# 0.65 and 0.61; after, 0.84 (a wording that cost citations) and 0.77 (the final wording). HHEM is strict: it flags
+# any claim the source does not state outright, benign paraphrase included, so it is a TREND metric (does the
+# agent stay close to the documents?) and there is deliberately no per-answer floor: the same correct answer
+# scored 0.31, 0.16 and 0.07 across runs. Telling harmless paraphrase from fabrication is the LLM judge's job.
+HHEM_THRESHOLDS = {"hhem_mean": 0.65}
 JUDGE_THRESHOLDS = {"judge_faithfulness": 0.85, "judge_relevance": 0.85, "judge_completeness": 0.60,
                     "judge_min_faithfulness": 0.50}
 THRESHOLDS = {"keyword_recall": 0.65, "citation_recall": 0.60, "p95_latency_ms": 45_000, "memory_recall": 1.0,

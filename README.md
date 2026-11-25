@@ -7,19 +7,14 @@ across conversations**. It is the Copilot Studio counterpart of
 [azd-foundry-search-agent](https://github.com/Metafiziks/azd-foundry-search-agent): same sample
 corpus, same eval cases, same protected-mode idea, different platform.
 
-> **Status.** Built as a **memory-enabled harness agent** (Claude Sonnet 4.6) and exercised against a real
-> tenant. Done and verified: one-script provision (create or update, idempotent), per-user memory,
-> per-user restriction at site and document level (two users, side by side), CI and OIDC deploy, and a
-> **passing scored eval** (keyword recall 0.99, citation recall 1.00, p95 25.7 s, memory recall 1.00, run
-> as a licensed user), and **telemetry** (environment-level export to Application Insights, verified).
-> **Faithfulness is scored with HHEM**, an open model that runs in CI with no key. It found the agent
-> elaborating beyond the documents (claim-level mean 0.61 to 0.68); tightening the instructions raised it to
-> 0.77, gated at 0.65. It is a strict trend metric (see Evaluations). An **LLM judge** (GPT-4.1) confirms it: labelling
-> each statement, it found 0.92 to 0.96 stated in the documents before tightening and 0.99 after, with no
-> contradictions (gated at 0.95 and zero contradicted). Its 1 to 5 overall scores saturate (all 5/5/5). Copilot Studio's built-in graders reject this agent
-> type (see Evaluations). **Not built:** anomaly detection.
-> **Two things will silently break it:** a user without a SharePoint-bearing license, and a brand-new
-> SharePoint site (see Troubleshooting). Each section says exactly where it stands.
+> **Status.** A memory-enabled **harness agent** (Claude Sonnet 4.6), exercised against a real tenant.
+>
+> - **Working and verified:** one-script provisioning (idempotent), per-user memory, per-user restriction at
+>   site and document level, CI with OIDC deploy, telemetry to Application Insights, and a **passing scored
+>   eval in CI** with faithfulness scoring by HHEM and an LLM judge (see [Evaluations](#evaluations)).
+> - **Not built:** anomaly detection over the telemetry.
+> - **Two things will silently break it:** a user without a SharePoint-bearing license, and a brand-new
+>   SharePoint site (see [Troubleshooting](#troubleshooting)).
 
 ## Architecture
 
@@ -36,32 +31,30 @@ flowchart LR
     S -->|"security trimming<br/>site permissions · label encryption"| A
     D3 -.-> A
     D2 -.-> S
-    A -.->|"not connected"| AI["Application Insights"]
+    A -.->|"environment-level export"| AI["Application Insights"]
     E["Evaluation<br/>scripts/run_evals.py<br/>as a licensed user"] --> A
 ```
 
 The agent runs entirely inside Copilot Studio: there is no code to host. It is a **harness-type agent**
-(`authoringModel: CliCopilot`, Claude Sonnet 4.6): the model plans, calls SharePoint search and
-file tools itself, and keeps per-user memory. Its model, instructions and memory setting live in
+(`authoringModel: CliCopilot`): the model plans, calls SharePoint search and file tools itself, and keeps
+per-user memory. Its model, instructions and memory setting live in
 [`agent/settings.mcs.yml`](agent/settings.mcs.yml); the SharePoint knowledge sources are rendered from your
 site URLs by [`scripts/render_agent.py`](scripts/render_agent.py); `pac copilot` syncs both.
 
 **SharePoint is the source of truth.** Retrieval runs under the signed-in user's identity, so site
-permissions and encrypted sensitivity labels decide what an answer can draw on. See
-[protected mode](guides/purview.md). Memory holds preferences only; documents supply the answers.
+permissions and encrypted sensitivity labels decide what an answer can draw on (see
+[protected mode](guides/purview.md)). Memory holds preferences only; documents supply the answers.
 
-> **Every user needs a SharePoint-bearing license.** The agent's search tools run as the signed-in
-> user, and for a user without one (for example Microsoft 365 Business Premium) they fail with
-> "Knowledge search · unknown" and the agent says it found nothing. An unlicensed **site owner** can
-> still open files and fetch them by name, which makes the failure look like a missing document. This
-> cost days of misdiagnosis in testing; see [Troubleshooting](#troubleshooting).
+> **Every user needs a SharePoint-bearing license.** For a user without one (for example Microsoft 365
+> Business Premium) the agent's search tools fail and it says it found nothing. An unlicensed **site owner**
+> can still open files by name, so it looks like a missing document. This cost days of misdiagnosis.
 
 ## Quick start
 
 **Prerequisites:** the [Power Platform CLI](https://learn.microsoft.com/power-platform/developer/cli/introduction)
-(`pac`, version with `pac copilot`; 2.16 worked) and its .NET runtime, the
+(`pac` with `pac copilot`; 2.16 worked) and its .NET runtime, the
 [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli), Python 3.10+, and a Microsoft 365
-tenant with SharePoint Online. Setup details are in [guides/setup.md](guides/setup.md).
+tenant with SharePoint Online. Details: [guides/setup.md](guides/setup.md).
 
 ```bash
 git clone https://github.com/Metafiziks/copilot-studio-agent && cd copilot-studio-agent
@@ -77,381 +70,117 @@ bash scripts/provision.sh
 | Preflight | Checks `pac`, `az`, Python and both sign-ins |
 | Environment | Creates a Developer environment if missing |
 | SharePoint | Creates a private site (a Microsoft 365 group) through Graph, converts `docs/` to `.docx`, uploads it |
-| Agent | Creates the harness agent if missing (`pac copilot init`, about 3 minutes), applies `agent/settings.mcs.yml` and the SharePoint knowledge sources to a workspace rebuilt from the live agent, pushes and publishes |
+| Agent | Creates the harness agent if missing (`pac copilot init`, about 3 minutes), applies `agent/settings.mcs.yml` and the knowledge sources to a workspace rebuilt from the live agent, pushes and publishes |
 | Next steps | Prints what a script cannot do: sharing the agent, checking licenses and applying labels |
 
-Then share the agent (Copilot Studio → Share → **Can use**; without it the Agents SDK gets a 404 for that
-user), make sure each user is SharePoint-licensed, and **wait for SharePoint to index a new site**,
-roughly 20 to 30 minutes, before asking questions.
+Then share the agent (Copilot Studio → Share → **Can use**; without it the Agents SDK gets a 404), make sure
+each user is SharePoint-licensed, and **wait for SharePoint to index a new site** before asking questions.
 
-Tear down:
-
-```bash
-bash scripts/teardown.sh --yes --delete-environment
-```
-
-Groups are deleted **and purged**; otherwise Entra reserves the site name for 30 days.
+Tear down with `bash scripts/teardown.sh --yes --delete-environment`. Groups are deleted **and purged**;
+otherwise Entra reserves the site name for 30 days.
 
 ## Bring your own documents
 
 Replace `docs/` with your own `.txt` files, adjust the instructions in `agent/settings.mcs.yml`, update
-`tests/eval_cases.json`, and re-run `bash scripts/provision.sh`. SharePoint knowledge accepts
-`.docx`, `.pdf`, `.pptx` and `.xlsx` (not `.txt`), so text files are converted on upload and cited as
-`.docx`. Or skip `docs/` and put those formats straight into the SharePoint library. Sample mode lets
-every member of the site read the documents; for internal knowledge bases use
-[protected mode](guides/purview.md): per-user trimming by site permission and by encrypted
-sensitivity label.
+`tests/eval_cases.json`, and re-run `bash scripts/provision.sh`. SharePoint knowledge accepts `.docx`, `.pdf`,
+`.pptx` and `.xlsx` (not `.txt`), so text files are converted on upload and cited as `.docx`; or put those
+formats straight into the SharePoint library. Sample mode lets every site member read the documents; for
+internal knowledge bases use [protected mode](guides/purview.md) (per-user trimming by site permission and
+encrypted sensitivity label).
 
 ## Evaluations
 
-**Status: passing.** 13 cases (12 document questions, 1 two-turn memory case), scored on real replies from a
-licensed test user against the dev agent.
+**Status: passing in CI.** 13 cases from the Azure template (12 document questions, 1 two-turn memory case),
+scored on real replies from a licensed test user. `scripts/run_evals.py` calls the agent through Microsoft's
+Agents SDK; `eval.yml` runs it in CI. Setup, every run and the analysis behind the scorers are in
+[guides/evaluation.md](guides/evaluation.md).
 
-`tests/eval_cases.json` holds the same 13 cases as the Azure template (12 RAG cases with expected
-keywords and sources, one two-turn memory case), with source names mapped to `.docx`.
-
-**Deterministic metrics** (keyword recall, citation recall, p95 latency, memory recall, failed calls) run
-from a script that calls the agent as a signed-in user through Microsoft's Agents SDK. One-time setup:
-
-```bash
-bash scripts/setup_entra_app.sh          # app registration, no secret; prints EVAL_CLIENT_ID / EVAL_TENANT_ID
-python3 -m venv .venv-eval && .venv-eval/bin/pip install microsoft-agents-copilotstudio-client msal
-# put EVAL_CLIENT_ID, EVAL_TENANT_ID, AGENT_ENVIRONMENT_ID, AGENT_SCHEMA_NAME in .env
-bash scripts/provision.sh --with-corpus   # protected mode only: also puts the sample corpus (flat) in the main site
-export AGENT_TOKEN_CACHE=.build/token_cache_eval.json     # one sign-in per test user
-.venv-eval/bin/python scripts/run_evals.py          # device-code sign-in on first use; exits 1 on a failed gate
-```
-
-Thresholds match the Azure template where a counterpart exists: keyword recall ≥ 0.65, citation recall
-≥ 0.60, p95 ≤ 45 s, memory recall = 1.0, and any failed call or empty answer fails the run. The HHEM gate is
-this repo's own (claim-level mean ≥ 0.65), calibrated on the runs below. The caller must
-be a **real user with a SharePoint-bearing license**, who is a member of the knowledge site and has the
-agent shared with them (**Can use**): the agent retrieves SharePoint as the signed-in user, an app-only
-caller has none, and for an unlicensed user every question comes back "not found".
-
-**Result** (Jane, licensed; sample corpus), before and after tightening the agent's instructions (see Faithfulness
-and quality scoring):
-
-| Metric | Before (dev) | After (e2e) | Live CI eval, after (dev) | Gate |
-|---|---|---|---|---|
-| Keyword recall | **0.986** | **0.924** | **0.949** | ≥ 0.65, passes |
-| Citation recall | **1.000** | **1.000** | **1.000** | ≥ 0.60, passes |
-| p95 latency | **25.7 s** | **29.2 s** | **20.9 s** | ≤ 45 s, passes |
-| Memory recall | **1.00** | **1.00** | **1.00** | = 1.0, passes |
-| HHEM claim-level mean | 0.61 to 0.68 | **0.77** (measured on the same answers in CI) | **0.82** | ≥ 0.65, passes |
-| LLM judge, stated share | 0.92 to 0.96 (re-scored) | 0.99 (re-scored) | **0.974** | ≥ 0.95, passes |
-| LLM judge, contradicted claims | 0 | 0 | **0** | 0, passes |
-| LLM judge faithfulness / relevance / completeness | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | **0.98 / 1.00 / 1.00** | ≥ 0.85 / 0.85 / 0.60, passes |
-| Failed calls | 0 | 0 | 0 | 0, passes |
-
-The live CI eval (Actions run 45707615037, `eval.yml`) scored every gate above but was marked failed by one
-scorer error: on one answer the judge's claim-mode reply left a label blank. The judge now gets one correction
-round for a malformed reply; re-scored with that fix, the same 12 answers judge with no errors (stated share
-0.976). Its one flagged answer is a real find: asked about a line clearance error, the agent added "for Line 2
-(second shift)", which is the eval user's stored preference, not something the standard says. A second live run
-(Actions run 45710449948) passed every check: keyword recall 0.928, citation recall 1.00, p95 21.2 s, memory
-1.00, HHEM 0.811, judge stated share 0.99 with no contradicted claims and no judge errors, faithfulness,
-relevance and completeness 1.00. Its only added statement was "Only after these four steps have been completed
-may the line be restarted", an inference from the standard's "before restarting", and the Line 2 aside did not
-recur.
-
-**How it got here (so you do not repeat it).** The first run, against the e2e site, scored 0.06 and 0.0.
-The cause was not the agent being wrong. Two checks had been misleading:
-
-- A browser search run as the unlicensed site owner returned nothing, which looked like "the site is not
-  indexed". Run as a licensed user, SharePoint search found the documents in both corpus sites within
-  hours. Always check as a licensed user.
-- The agent itself still failed on the two brand-new corpus sites for hours (errors, then "no results"),
-  for Jane and for John, while the same agent answered correctly from the two-day-old dev site. A new file
-  added to an established site was retrievable **about 10 minutes** after upload. So the agent's search
-  appears to take a long time to start covering a **brand-new site** (not a Microsoft statement), while new
-  files on a covered site are quick. The conversation transcripts give the failing call's exact error,
-  `sharepoint_*_search failed: NotFound in FederationWorkflow` (every search but one, from 03:02 to 06:35 UTC
-  on the e2e agent), and the telemetry shows the same e2e agent retrieving from the same new site, `ol-eval-corpus`,
-  successfully 12.5 hours later. A Microsoft Q&A thread reports the same error text, with no answer. The corpus therefore runs in the established dev
-  site, uploaded flat (`--with-corpus`); sub-folders were not re-tested after the site became usable.
-
-**Faithfulness and quality scoring.** Copilot Studio's built-in graders reject this agent type (below), so
-the LLM-judged half of the Azure template's evaluation is built here and scored against the source
-documents in `docs/`:
-
-| Scorer | What it measures | Needs | Status |
-|---|---|---|---|
-| **HHEM** (`scripts/hhem.py`) | Probability (0 to 1) that each claim in an answer is consistent with its source documents, averaged. Vectara's HHEM-2.1-open: Apache-2.0, pinned revision, runs on CPU | PyTorch (`requirements-hhem.txt`); no key | **Running in CI.** Gate: claim-level mean ≥ 0.65; the worst single answer is reported, not gated |
-| **LLM judge** (`scripts/judge.py`) | Faithfulness, relevance and completeness, 1 to 5 each | `JUDGE_API_KEY` for any OpenAI-compatible endpoint | **Runs live** (`gpt-4.1`). The 1 to 5 scores saturate (every saved answer 5/5/5), so they only catch a regression |
-| **LLM judge, claim mode** (`scripts/judge.py`) | Each statement labelled stated, added or contradicted; the share stated | Same key | **Runs live.** Gate: stated share ≥ 0.95 and no contradicted claim. Separates the runs: 0.92 to 0.96 before tightening, 0.99 after |
-
-Each scorer must pass a **self-test** before it scores anything: HHEM scored a faithful answer 0.90, an
-invented one 0.03 and an off-topic one 0.005. If a scorer cannot tell known-good from known-bad answers the
-run fails instead of reporting its numbers.
-
-**What HHEM is, and is not, good for here.** It scores each sentence or list item against the cited
-documents (scoring a whole multi-item answer in one pass was unreliable: one correct answer scored 0.31, 0.16
-and 0.07 on three runs). It is **strict**: it flags any claim the document does not state outright. That
-catches real embellishment, such as "tears, fraying" for the conveyor check, "a qualified technician can
-assess and repair it", or "keep the press tagged out" (the guide never says tag out). It also flags harmless
-restatement: "Guard placement: all guards are properly installed and in place" scored 0.02. So it measures
-**how closely the agent sticks to the documents' wording**, which is a useful trend (a drop means the agent
-is drifting), but it cannot separate harmless paraphrase from fabrication, so there is **no per-answer
-floor**; the lowest answer is reported and the gate is on the mean. Telling the two apart was meant to be the LLM judge's
-job, but the judge turned out too lenient to do it: see "What the LLM judge showed" below. The weakest claims per answer are saved in
-`eval_results.json` under `hhem.weakest_claims`, so a low score can be read, not just trusted.
-
-**What the LLM judge showed.** `python scripts/judge.py rescore` (the `Scorer self-tests` workflow runs it) judges the
-saved answers with `gpt-4.1` and costs no agent credits. All 54 answers, before and after tightening, scored
-faithfulness, relevance and completeness 5/5/5, with no unsupported claims listed. That agrees with HHEM on the
-main point: the agent invents no facts, steps or numbers. It cannot show the improvement HHEM measured, and it
-missed embellishments a reader can find: "Production must halt immediately upon discovery of the error" and
-"physically separated and held" are not in the line clearance standard (which says only "Stop the line, segregate
-affected product, ..."), and neither lowered the score. A 1 to 5 whole-answer score saturates on correct answers,
-so use the judge to catch a regression (one answer dropping to 3 or below fails the run) and HHEM to track drift.
-
-**Claim mode closes that gap.** `python scripts/judge.py rescore --claims` asks the judge to list each statement in
-the answer and label it stated (the documents say it, in any words), added (an explanation, reason, example or
-detail they do not contain, however plausible) or contradicted. Its self-test requires it to rate a faithful answer
-above the same answer with added detail (1.00 against 0.40 with `gpt-4.1`) and to catch an invented one (0.00). On
-the 54 saved answers:
-
-| Run | Stated share | Added statements per answer | Contradicted |
-|---|---|---|---|
-| Before tightening (run 1, 2, 3) | 0.918, 0.958, 0.955 | 0.58, 0.42, 0.33 | 0 |
-| After ("name once", final "cite") | 0.986, 0.988 | 0.08, 0.08 | 0 |
-| Live CI eval on dev, final wording | 0.974 (0.976 re-scored); 0.990 on the second run | 0.17; 0.08 | 0 |
-
-It agrees with HHEM on direction and finds what a reader would: the old conveyor answer adds "tears, fraying" and
-"on or around the conveyor" to a manual that lists only "unusual noise, belt damage, loose fasteners, foreign
-objects". It is noisy on a single answer (it let "halt immediately" through), so the gate is on the run mean, at
-0.95: that fails the most elaborate old run, and a stricter value would fail correct runs on noise, since one
-added claim in a five-claim answer costs a 12-answer run about 0.015. No answer in any run contradicted the
-documents. The eval stores the statements that were not stated in `eval_results.json` under
-`judge.claims.not_stated`.
-
-**Fixing it: tighter instructions, measured.** The agent's instructions said to answer only from the
-documents, yet it elaborated. They now also say to use the documents' wording, add no explanations, examples or
-inferences, answer only what was asked with no preamble or extra warnings, cite the document, and say plainly
-which part is not covered (`agent/settings.mcs.yml`). Effect, from the full 12-answer runs below:
-
-- Faithfulness: the HHEM claim-level mean rose from 0.61 to 0.68 to **0.77**, and the share of claims HHEM
-  supports from 63 to 71% to **83%**. The weakest answer went from 0.28 to 0.36 to 0.44.
-- Answers are about **half as long** (about 500 characters against 800 to 1,000).
-- Citations: a first wording ("name the document once") scored higher still (0.84) but made two answers drop
-  their inline citation, so citation recall fell from 1.00 to 0.83; the final wording ("cite the document each
-  answer comes from") restored it to **1.00**.
-- Cost: keyword recall slipped from about 0.96 to **0.92** (the terser answers omit an item now and then; the
-  zero-energy answer went from 0.75 to 0.50). Still above its 0.65 gate. If completeness matters more than
-  tightness, relax the "answer exactly what was asked" sentence.
-
-Single runs vary (the agent words answers differently each time), so treat the 0.77 as a level, not a point.
-
-| Full run (12 answers; run 4 has 6) | Whole answer | Claim by claim | Claims HHEM supports |
-|---|---|---|---|
-| 1 | 0.55 | **0.68** | 71% |
-| 2 | 0.59 | **0.65** | 68% |
-| 3 | 0.50 | **0.61** | 63% |
-| 4 (6 answers, final code) | n/a | **0.58** | 60% |
-| 5, tightened instructions, "name the document once" (dev) | 0.78 | **0.84** | 91% |
-| 6, final instructions (e2e) | 0.78 | **0.77** | 83% |
-
-The three full runs' answers are saved in `tests/fixtures/agent_answers.json`, and
-`python scripts/hhem.py rescore` re-scores them (also a step of the `Scorer self-tests` workflow), so a change
-to the scoring can be checked against real answers without spending agent credits.
-
-```bash
-pip install -r requirements-hhem.txt --extra-index-url https://download.pytorch.org/whl/cpu   # about 1.5 GB on disk
-.venv-eval/bin/python scripts/run_evals.py --hhem on          # --judge on as well once JUDGE_API_KEY is set
-python scripts/hhem.py selftest                               # or the "Scorer self-tests" workflow, no agent needed
-```
-
-To switch the LLM judge on in CI, add `JUDGE_API_KEY` as a secret in the `dev` environment (and optionally
-the variables `JUDGE_BASE_URL` and `JUDGE_MODEL`, default `https://api.openai.com/v1` and `gpt-4.1`); the
-eval then judges every answer and the `Scorer self-tests` workflow checks the judge first. Use a different
-model family from the agent so the judge does not favour its style.
-
-**The built-in graders**, tried first, are Copilot Studio's
-[Agent Evaluation](https://learn.microsoft.com/microsoft-copilot-studio/analytics-agent-evaluation-create).
-Export the cases for it:
-
-```bash
-python3 scripts/export_eval_csv.py      # writes .build/eval_cases.csv
-```
-
-Import it under **Evaluate → Create your first evaluation → Import**. What was found doing exactly that on
-the harness agent:
-
-- The **Evaluate** tab exists for harness agents, and the 12 single-turn cases imported (the memory case is
-  multi-turn and is skipped). Methods offered: General quality, Content safety, Compare meaning,
-  Capability use, Keyword match, Text similarity, Exact match, Classification.
-- **Keyword match does not read the CSV.** It wants keywords typed per row in the UI (Any or All applies to
-  the whole set); the `Expected response` column did not populate them. Not worth ~60 hand-typed entries
-  when `run_evals.py` already scores keyword recall, so only **General quality** (the LLM-judged one) is set.
-- **A run was attempted and fails for this agent type.** The run needs an authenticated account
-  (Manage profile and connections > Add an account, an OAuth sign-in by a person), done here as a licensed
-  user. All 12 cases returned *Error* ("The agent rejected this request as invalid, so this test case
-  couldn't be evaluated") in 34 s at 0 credits, and Application Insights shows no `InvokeAgent` span for the
-  run, so the evaluator never reached the agent. Microsoft documents evaluation only for agents on the
-  *standard harness* (with No authentication or Authenticate with Microsoft), never mentions CLI-created
-  agents, and gives the *Error* state no meaning. Treat the built-in evaluation as unsupported for this agent
-  type; `scripts/run_evals.py` is the evaluation. A standard-harness agent was not run as a control (the
-  classic agent that could have been was deleted just before), so this is the likely cause, not a proven one.
-
-How each Azure metric maps:
-
-| Azure metric | Copilot Studio | Status |
+| Metric | Latest CI run | Gate |
 |---|---|---|
-| Faithfulness (GPT-5 judge) | HHEM consistency (`scripts/hhem.py`); built-in General quality rejects this agent type | **0.61 to 0.68** before tightening the agent's instructions, **0.77** after (claim-level mean) |
-| Answer relevance (GPT-5 judge) | LLM judge (`scripts/judge.py`); built-in General quality rejects this agent type LLM judge on the 54 saved answers: **1.00 on every run**, a ceiling. Claim mode (faithfulness): stated share **0.92 to 0.96** before tightening, **0.99** after |
-| Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.924** (0.986 before the instructions were tightened) |
-| Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
-| p95 latency | `scripts/run_evals.py` | **29.2 s** |
-| HHEM hallucination score | `scripts/hhem.py`, the same model the Azure template uses | **Running in CI**; gate: claim-level mean ≥ 0.65 |
-| Memory recall | `scripts/run_evals.py` | **1.00** |
+| Keyword recall | 0.928 | ≥ 0.65 |
+| Citation recall | 1.00 | ≥ 0.60 |
+| p95 latency | 21.2 s | ≤ 45 s |
+| Memory recall | 1.00 | = 1.0 |
+| HHEM claim-level mean | 0.811 | ≥ 0.65 |
+| LLM judge: share of statements found in the documents | 0.99 | ≥ 0.95 |
+| LLM judge: contradicted statements | 0 | 0 |
+| LLM judge: faithfulness / relevance / completeness | 1.00 / 1.00 / 1.00 | ≥ 0.85 / 0.85 / 0.60, and no answer below 0.50 |
+| Failed calls, scorer errors, scorer self-tests | 0, 0, passed | any failure fails the run |
 
-The built-in Evaluation REST API (`api.powerplatform.com/copilotstudio/.../makerevaluation/testsets/{id}/run`)
-needs a **user** access token too, and its documentation does not name the scope or say whether the
-draft or published agent is evaluated, so triggering it from a script is not implemented.
+**Faithfulness** is scored two ways against the source documents in `docs/`:
+
+- **HHEM** (`scripts/hhem.py`, Vectara's open model, runs on CPU with no key) scores each claim. It is strict
+  about paraphrase, so it is a trend metric gated on the mean.
+- **An LLM judge** (`scripts/judge.py`, any OpenAI-compatible endpoint via `JUDGE_API_KEY`, `gpt-4.1` by
+  default) labels each statement stated, added or contradicted. Its 1 to 5 overall scores saturate on
+  correct answers, so they only catch regressions.
+
+Each scorer must pass a **self-test** before it scores anything. Both found the agent elaborating beyond the
+documents, and tightening its instructions fixed most of it (HHEM 0.61–0.68 → 0.77–0.82; statements found in
+the documents 0.92–0.96 → 0.97–0.99), at a small cost in keyword recall (0.986 → about 0.93).
+`tests/fixtures/agent_answers.json` keeps the answers from every run, and the `Scorer self-tests` workflow
+re-scores them without spending agent credits.
+
+**Copilot Studio's built-in graders** (Agent Evaluation) reject this agent type: every case returns *Error*
+and the evaluator never reaches the agent. `scripts/run_evals.py` is the evaluation.
+
+> The caller must be a **real user with a SharePoint-bearing license**, a member of the knowledge site, with
+> the agent shared to them: an app-only caller has no user for SharePoint to trim by. A memory case
+> **writes into that user's memory**, so use a dedicated test user.
 
 ## Memory
 
-**Status: built and verified.** Turned on in code (`enableMemory: true` in
-[`agent/settings.mcs.yml`](agent/settings.mcs.yml)) and exercised against a real tenant.
-
+**Status: built and verified.** `enableMemory: true` in [`agent/settings.mcs.yml`](agent/settings.mcs.yml).
 Copilot Studio's [Memory (preview)](https://learn.microsoft.com/en-us/microsoft-copilot-studio/agents-experience/memory-overview)
-works on this agent type: the agent itself decides what to keep (preferences, feedback, ongoing work),
-stored per user and per agent in Microsoft-managed storage, and it consults that memory when a
-conversation starts. Memories are deleted after 28 days of inactivity, cannot be exported, an admin can
-only view a user's memories through a support ticket, and turning the toggle off does not delete them
-immediately. It is usage-billed.
+lets the agent decide what to keep (preferences, feedback, ongoing work), stored per user and per agent in
+Microsoft-managed storage. Memory requires the harness agent type; classic, topic-based agents have no
+Memory option.
 
-**Verified.**
-
-- Told a preference in one conversation ("my favorite color is teal"), the agent recalled it in a
-  brand-new conversation (different conversation ID) after about 30 seconds.
-- The two-turn eval case passes as a licensed user: second shift and Line 2 were stored in one
-  conversation and returned in another (`memory_recall = 1.00`). Each eval turn is its own conversation,
-  so only memory can supply the answer.
-- **Not guaranteed to be applied.** The agent acknowledged a "two sentences" formatting preference and
-  then answered in one sentence. Memory is the model's judgement, not a rule; documents supply the
-  answers and memory supplies preferences only.
-
-**Why it was not here before.** The first version of this repo was a classic, topic-based agent, which has
-no Memory option. Memory belongs to the harness agent type, so the agent was rebuilt as one
-(`authoringModel: CliCopilot`). That changed how knowledge is searched and where its telemetry comes from; see
-Observability.
-
-| Azure template | Here |
-|---|---|
-| Foundry Memory Store, scoped per user, written in the background | Copilot Studio Memory, scoped per user and per agent, written by the agent |
-| Memory is not the source of truth: documents supply answers, memory only preferences | The same, set in the agent's instructions |
-| Two-turn recall eval | `tests/eval_cases.json` case `memory-preference-recall`, run by `scripts/run_evals.py` |
-| Delete a user's memory | Not available to admins; support ticket only |
-
-A memory eval case **writes into the signed-in user's memory**, and that persists, so use a dedicated
-test user.
+- **Verified:** a preference told in one conversation was recalled in a new one after about 30 seconds, and
+  the two-turn eval case passes (`memory_recall = 1.00`).
+- **Not guaranteed to be applied:** the agent acknowledged a "two sentences" preference and then answered in
+  one. Memory is the model's judgement, not a rule. Once, in a live eval, it also mixed a stored preference
+  ("Line 2, second shift") into a document answer.
+- **Limits:** memories are deleted after 28 days of inactivity and cannot be exported; an admin can view or
+  delete a user's memories only through a support ticket; turning the toggle off does not delete them
+  immediately. It is usage-billed.
 
 ## Observability
 
-**Status: verified. Environment-level telemetry (preview) delivers this harness agent's conversations to
-Application Insights: the prompt, the reply, each knowledge-search call and its results, the model and the
-user. Dataverse conversation transcripts also record them, with the exact tool errors.**
+**Status: verified.** The Power Platform admin center's environment-level export (preview; Manage > Data
+export > App Insights, data type *Copilot Studio*) delivers this agent's conversations to Application
+Insights as `dependencies` spans: `InvokeAgent` (prompt, reply, model, user) and one `ExecuteTool` per
+retrieved document (with its content). Dataverse `conversationtranscripts` also record each conversation,
+including the exact tool errors. Query examples, span details and the Azure comparison are in
+[guides/observability.md](guides/observability.md).
 
-The earlier classic agent emitted a `KnowledgeSearch` custom event from a topic. A harness agent has no
-topics and no per-agent Application Insights setting (Settings > Advanced offers only solutions and a
-channel-name suffix), so the two sources below replace it.
-
-**1. Environment-level export to Application Insights (preview).** Configured by an administrator in the
-Power Platform admin center (Manage > Data export > App Insights > New data export, data type *Copilot
-Studio*), not on the agent. Microsoft's
-[page](https://learn.microsoft.com/en-us/microsoft-copilot-studio/advanced-environment-level-agent-telemetry)
-names the standard and Microsoft Copilot harnesses and never mentions agents created with
-`pac copilot init --authoring-mode cli-copilot`; **tested here, it covers them.** Prerequisites: a managed
-environment, Application Insights with *Local authentication* on, the public cloud.
-
-A marked question to the harness agent produced, within about a minute, rows in `dependencies`:
-
-| Span | What it carries |
-|---|---|
-| `InvokeAgent` (root) | the user's prompt (`gen_ai.input.messages`), the reply (`gen_ai.output.messages`), model (`Sonnet46`), duration, conversation and session IDs, channel, **user email, id and name**, client IP |
-| `ExecuteTool` (one per retrieved document) | tool `SharePoint` (type `Knowledge`), `gen_ai.tool.call.arguments` and **`gen_ai.tool.call.result`** (document URI and content), same tool-call ID |
-| `OutputMessages` | the final message (classic agents) |
-
-```kusto
-dependencies
-| where name in ("InvokeAgent", "ExecuteTool", "OutputMessages") and timestamp > ago(1d)
-| extend agent = tostring(customDimensions["gen_ai.agent.name"]),
-         conv = tostring(customDimensions["gen_ai.conversation.id"])
-| project timestamp, name, agent, conv, success, duration, customDimensions
-| order by timestamp desc
-```
-
-Things to know:
-
-- **Activation takes hours.** Conversations in the 40 minutes after the export was created (05:55 to 06:35
-  UTC) produced nothing; the next conversation, about 12.5 hours later, was delivered in under a minute.
-  The page says up to 24 hours for a new configuration. **An early "no rows" proves nothing**, and an empty
-  table with no conversations in the window proves even less: send a marked question, then look.
-- **The spans carry document text and the user's identity.** No setting to turn that off is documented. For
-  a protected-documents agent that is the same exposure as the classic agent's default, so do not enable
-  it on the protected-mode environment, and restrict read access to the workspace. Tool results contain
-  what the user was allowed to retrieve, and the workspace is not governed by the labels.
-- **Managed Environment licensing.** The environment must be managed, which carries a premium-license
-  requirement for its users that this tenant does not hold: fine for a test environment, a decision for
-  production.
-- The destination was verified independently by posting a synthetic span to the ingestion endpoint (seen in
-  `dependencies` within a minute), so an empty table means nothing is being sent, not that the resource is
-  misconfigured. Avoid pointing both agent-level and environment-level telemetry at one Application
-  Insights resource (the earlier classic agent did, which is why `customEvents` also filled up; it has been deleted).
-- Preview limits from the page: possible small data loss, truncation of long content, no `duration` for some
-  traces, no topic events.
-
-**2. Dataverse conversation transcripts.** Harness conversations *do* land in `conversationtranscripts`
-(an earlier version of this README said they did not; that check was too early, since rows appear with a
-delay of hours). Each transcript holds the messages, the model's reasoning text (`ThinkingTrace`) and a
-`ToolCallTrace` per tool call with its status, **including the exact error**: for the failing searches,
-`sharepoint_semantic_search failed: NotFound in FederationWorkflow`. This is where that error was found.
-Query it with the Dataverse Web API (`/api/data/v9.2/conversationtranscripts`, `content` is JSON); the bot
-is `_bot_conversationtranscriptid_value`.
-
-Also visible: the test pane shows each tool call and a credit estimate (about 4 Copilot Credits for a
-question that searches SharePoint); the admin center shows credit usage per agent once billed usage is
-reported.
-
-`scripts/provision_observability.sh` creates the Log Analytics workspace (daily ingestion cap) and the
-workspace-based Application Insights the export points at. Its printed "connect the agent" step applies to
-classic agents only; for this agent create the export in the admin center. Teardown removes the resources
-with `--delete-observability`; remove the export package and Managed Environments setting separately.
-
-| Azure template | Here | Status |
-|---|---|---|
-| Log Analytics `AgentTelemetry_CL` via a data collection endpoint | Environment-level export to Application Insights (`dependencies` spans): Environment-level export, preview; verified on this agent | Working (activation took hours) |
-| Per-request retrieval score, reranker score, chunk count | Not exposed; the tool result lists the retrieved documents, with no scores | Partly reproducible (documents, no scores) |
-| `IsolationForest` over six retrieval features | The feed now exists (spans per question and retrieved document); features are limited to counts, latency, success | Not built |
-| HHEM faithfulness score in evals | Answer plus retrieved text are in the `InvokeAgent` and `ExecuteTool` spans; custom runner | Not built |
-| Weekly retrain workflow | | Not built |
-
-What can be measured today comes from the eval runner (latency, recall) and billing data. In the test tenant
-a pay-as-you-go plan is linked to the environments and an Azure budget alert watches the spend; both were
-set up by hand and are not scripted.
+- **Activation takes hours**, and so do transcripts. An early "no rows" proves nothing: send a marked
+  question, then look.
+- **The spans carry document text and the user's identity**, with no documented way to turn that off. Do not
+  enable it on a protected-mode environment, and restrict read access to the workspace.
+- Requires a **Managed Environment** (a premium-license requirement for its users) and Application Insights
+  with local authentication on.
+- `scripts/provision_observability.sh` creates the workspace and Application Insights; create the export
+  itself in the admin center.
+- **Not built:** anomaly detection over these spans; the spans expose counts, latency and success, not
+  retrieval scores.
 
 ## CI/CD
 
-**Status: `ci.yml`, `deploy.yml` and `eval.yml` are all verified on GitHub against the harness agent. `eval.yml` runs as a licensed test user from a stored sign-in cache.**
+**Status: all workflows verified on GitHub against the harness agent.**
 
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `ci.yml` | push to `main`, pull requests | Unit tests and shell syntax checks. No tenant access, no secrets |
-| `deploy.yml` | push to `main` touching `agent/`, or manual | Signs in to Power Platform with **GitHub OIDC** (`pac auth create --githubFederated`) and runs `provision.sh --skip-sharepoint` to push and publish the agent |
-| e2e eval | The scripted eval also passes on the e2e agent against the sample corpus in its own new site `ol-eval-corpus` (keyword recall 0.965, citation 1.000, p95 34.6 s, memory 1.00), which failed with `NotFound in FederationWorkflow` about 12 hours earlier. The flat upload into an established site (`--with-corpus`) is therefore a precaution, not a requirement |
-| Portal Monitor tab | Works for the harness agent, fed by the conversation transcripts: sessions, daily users, duration, success rate, with a delay of hours. Its 0% success and "no tool use" mirrored the failed searches, and it had not yet shown the newest sessions |
-| Credit limits | 1,000 Copilot Credits per agent with *Stop usage* at 100% and an 80% notification, on both `OL Memory Agent` entries (dev and e2e), set in the admin center under Licensing > Copilot Studio > Manage Agents. The agent only appeared there after it had billed usage (631 and 398 credits by then). At about 4 credits per turn, a daily CI eval of 13 turns is roughly 50 credits, so budget the cap |
-| Purview audit | Not evaluated. The Audit page reported it could not confirm that activity is being recorded and offered to start recording, a tenant-wide compliance setting that was left alone |
-| `eval.yml` | manual | Installs CPU PyTorch (cached), runs `scripts/run_evals.py --hhem on` and uploads the results; see the constraint below |
-| `scorers.yml` | manual | Runs the HHEM (and, with a key, LLM judge) self-tests and re-scores the saved answers in `tests/fixtures/agent_answers.json`: no agent, no tenant access |
+| `deploy.yml` | push to `main` touching `agent/`, or manual | Signs in with **GitHub OIDC** (`pac auth create --githubFederated`) and runs `provision.sh --skip-sharepoint --no-create` to push and publish |
+| `eval.yml` | manual | Runs `scripts/run_evals.py` with HHEM and (with a key) the LLM judge as the test user from the `EVAL_TOKEN_CACHE` secret; uploads the results |
+| `scorers.yml` | manual | Scorer self-tests and a re-score of the saved answers: no agent, no tenant access |
 
-One-time setup, all scriptable except the last two:
+One-time setup, all scriptable:
 
 ```bash
 bash scripts/setup_entra_app.sh --github-repo owner/repo --github-environment dev   # federated credential
-pac admin assign-user --environment <url> --user <app-client-id> --application-user --role "System Customizer"   # see the role note below
+pac admin assign-user --environment <url> --user <app-client-id> --application-user --role "System Customizer"
 gh api -X PUT repos/owner/repo/environments/dev                                      # the environment name is part of the credential's subject
 # Identifying values go in as SECRETS, not variables: variables are printed in clear text in Actions logs,
 # which are public on a public repository, while secrets are masked from the first line.
@@ -461,40 +190,17 @@ done
 gh variable set KB_ACCESS_MODE --env dev --body protected    # plus KB_SITE_NICK, RESTRICTED_SITE_NICK, AGENT_SCHEMA_NAME
 ```
 
-No client secret is stored for deploys (OIDC); the five values above are secrets only so that logs stay clean.
-`scripts/mask_ci_values.sh` additionally masks the forms the platform derives from them (a URL's host, a
-GUID without dashes). A production environment was deferred.
+- **No client secret** is stored for deploys (OIDC). `scripts/mask_ci_values.sh` also masks the forms the
+  platform derives from the secrets (a URL's host, a GUID without dashes).
+- **The deploy identity needs `System Customizer`**: the Bot roles are user-level and cannot see an agent
+  another user owns.
+- **Evals need a user, not the app**, so `eval.yml` uses a stored refresh token for a dedicated test user
+  (`EVAL_TOKEN_CACHE`). That breaks on conditional access and idle expiry; refresh it from a local sign-in.
+- **Budget the credits.** About 4 Copilot Credits per turn, so a full eval is roughly 60 to 80. Each agent
+  has a cap with *Stop usage* in the admin center (Licensing > Copilot Studio > Manage Agents); when it is
+  reached the agent stops answering.
 
-**Verified runs.** `deploy.yml` signs in with OIDC as the app, clones the live agent into a fresh workspace,
-applies `agent/`, pushes and publishes; a run with nothing changed reports "No local changes detected" and
-still publishes. The federated credential and the role were each wrong once before it worked (details
-below). **A publish quirk:** `pac` 2.16.1 sometimes fails after the publish has already succeeded, with
-`System.ArgumentException: Invalid response format` from its status poller. `provision.sh` handles exactly
-that error by reading the bot's `synchronizationstatus` (`pac org fetch`) and passing only if it shows a
-publish that succeeded since the call began; every other error still fails the deploy, and the workflow
-prints `pac`'s own log when a deploy fails.
-
-**Role.** Pushing an agent that another user owns needs organization-level access to the bot and bot
-component tables. In the test environment, `Bot Author`, `Bot Contributor`, `Bot Viewer` and
-`Environment Maker` are all **user-level** (the app sees only records it owns, so `pac copilot list`
-returned nothing for it), while `System Customizer` is **organization-level** for read, write and
-create. `System Customizer` is the narrowest standard role that works; the app holds it (plus `Bot Author`, which became redundant). `deploy.yml` runs
-`provision.sh --no-create`, so an agent the identity cannot see is a hard failure and never a re-import
-of the template.
-
-**Federated credential subject.** GitHub puts immutable numeric IDs into its OIDC subject for newer
-repositories (`repo:owner@<id>/name@<id>:environment:dev`). A name-based credential never matches and
-fails with `AADSTS700213`. `setup_entra_app.sh` looks the IDs up with `gh` and replaces a stale credential.
-
-One constraint shapes the design: a federated GitHub identity is an **app**, and the Power Platform API
-offers an application permission (`CopilotStudio.Copilots.Invoke`), but this agent retrieves SharePoint
-as the **signed-in user**. An app-only call has no user for SharePoint to trim by, so I expect its
-retrieval to come back empty (not tested). Deploying with `pac` can run from CI under the federated
-identity; evals need a user who holds a SharePoint-bearing license, so they run on demand from a signed-in
-session unless a dedicated test user's refresh token is stored as a secret, which breaks on conditional
-access and idle expiry. `eval.yml` runs as that user from the `EVAL_TOKEN_CACHE` secret (Jane's sign-in cache in this test tenant)
-and `AGENT_ENVIRONMENT_ID` (secret) / `AGENT_SCHEMA_NAME` (variable), which point at the dev agent whose site holds
-the sample corpus. They are set, and the workflow has passed once (see Verification).
+Role, OIDC-subject and `pac` publish-quirk details: [guides/ci.md](guides/ci.md).
 
 ## Configuration
 
@@ -512,7 +218,7 @@ Set in `.env` (see `.env.example`).
 | `RESTRICTED_SITE_NICK` / `RESTRICTED_SITE_TITLE` | Restricted site in protected mode (default `ol-restricted`) |
 | `EVAL_CLIENT_ID` / `EVAL_TENANT_ID` | Evals: the app registration from `scripts/setup_entra_app.sh` and its tenant |
 | `AGENT_ENVIRONMENT_ID` / `AGENT_SCHEMA_NAME` | Evals: the agent to call (the environment ID is in the portal URL; the schema name is `olk_OLMemoryAgent`) |
-| `JUDGE_API_KEY` / `JUDGE_BASE_URL` / `JUDGE_MODEL` | Optional LLM judge (set in `dev`): key for any OpenAI-compatible endpoint (default `https://api.openai.com/v1`, model `gpt-4.1`). Unset, the judge is skipped and the run says so |
+| `JUDGE_API_KEY` / `JUDGE_BASE_URL` / `JUDGE_MODEL` | Optional LLM judge: key for any OpenAI-compatible endpoint (default `https://api.openai.com/v1`, model `gpt-4.1`). Unset, the judge is skipped and the run says so |
 | `AGENT_TOKEN_CACHE` | Evals: the sign-in cache file (default `.build/token_cache.json`). Use a different file per test user |
 | `OBS_RESOURCE_GROUP` / `OBS_LOCATION` | Monitoring resource group and region (defaults `rg-copilot-agent-obs`, `eastus2`) |
 | `OBS_WORKSPACE` / `OBS_APPINSIGHTS` | Log Analytics workspace and Application Insights names (defaults `log-copilot-agent`, `appi-copilot-agent`) |
@@ -522,37 +228,35 @@ Set in `.env` (see `.env.example`).
 
 | What | Result |
 |---|---|
-| Unit tests | 96 pass (`pytest`): corpus and `.docx` conversion, agent-definition rendering, SharePoint/Graph client with a stubbed transport, shell helpers, provisioning stage with stub tools, eval cases and CSV export, eval and memory metrics and gating |
-| `provision.sh` on the harness agent | Real runs against two environments: the dev agent (clone, apply definition, push, publish) and the e2e agent; a second run pushed nothing, and the portal showed the instructions, the knowledge source and Memory exactly as in `agent/`. The create path (`pac copilot init`, about 3 minutes) was run by hand to make the first dev agent; the script's create branch is covered by dry-run tests only |
-| Memory | Recalled in a new conversation after about 30 s; eval memory case 1.00 as a licensed user (see Memory) |
-| Access restriction | Two users side by side on the harness agent, at site and document level; see [guides/purview.md](guides/purview.md) |
-| Licensing | Same agent, same question: answered for a SharePoint-licensed user, "not found" for an unlicensed site owner, until that owner was licensed. Root cause of days of failed probes |
-| Eval runner | Scored run as a licensed user: keyword 0.986, citation 1.000, p95 25.7 s, memory 1.00; all gates pass (see Evaluations) |
-| `setup_entra_app.sh` | Created the app registration (single tenant, public client, no secret) and granted consent; the delegated grants were read back from the directory |
-| GitHub Actions | `ci.yml` green. `deploy.yml` ran on the harness agent as the app identity: OIDC sign-in, clone, apply, "No local changes detected" (idempotent), publish. `pac` 2.16.1 failed twice while parsing the publish status ("Invalid response format") although the bot record showed the publish had succeeded, then passed on a third run; a verification step handles that error (unit-tested with fake commands, not yet hit live). The step that prints `pac`'s own log on failure found it |
-| SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
-| Telemetry | Environment-level export to Application Insights verified on this agent (prompt, reply, search calls, user); Dataverse transcripts also hold harness conversations (see Observability) |
-| `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
-| HHEM scoring | Ran in CI on the agent's real answers (six runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; claim-level means 0.68, 0.65, 0.61 and 0.58 before, 0.84 and 0.77 after tightening the agent's instructions. The weakest claims were elaborations the documents lack and some harmless restatements. The LLM judge (`gpt-4.1`) passed both self-tests live; its overall scores were 5/5/5 on all 54 saved answers, and claim mode separated the runs (stated share 0.92 to 0.96 before, 0.99 after, no contradictions) |
-| New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
+| Unit tests | 179 pass (`pytest`), covering corpus conversion, agent rendering, the Graph client, shell helpers, provisioning with stub tools, eval metrics and gating, and both scorers with fake models |
+| `provision.sh` | Real runs on two environments (clone, apply, push, publish); a second run pushed nothing. The create path (`pac copilot init`) was run by hand; the script's create branch is covered by dry-run tests only |
+| Memory | Recalled in a new conversation after about 30 s; eval memory case 1.00 |
+| Access restriction | Two users side by side, at site and document level; see [guides/purview.md](guides/purview.md) |
+| Licensing | Same agent, same question: answered for a SharePoint-licensed user, "not found" for an unlicensed site owner |
+| Evals | Passing in CI with HHEM and the LLM judge; see [Evaluations](#evaluations) |
+| GitHub Actions | `ci.yml`, `deploy.yml` (OIDC, idempotent publish), `eval.yml` and `scorers.yml` all green |
+| Telemetry | Environment-level export verified on this agent; Dataverse transcripts also hold harness conversations |
+| Not evaluated | Purview audit (a tenant-wide compliance setting, left alone) |
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `pac: command not found`, or "You must install .NET" | Add `~/.dotnet/tools` to `PATH` and set `DOTNET_ROOT` (Homebrew: `/opt/homebrew/opt/dotnet/libexec`); the scripts do this when the Homebrew path exists |
+| `pac: command not found`, or "You must install .NET" | Add `~/.dotnet/tools` to `PATH` and set `DOTNET_ROOT` (Homebrew: `/opt/homebrew/opt/dotnet/libexec`). `pac` 2.16 targets .NET 10; with only .NET 11 installed also set `DOTNET_ROLL_FORWARD=Major` |
 | `pac auth` fails with "refresh token has expired" | Idle 90 days. Delete the profile and run `pac auth create --deviceCode` again |
 | `pac admin create` rejects `unitedstates` | Pass `--macro-region north-america` (or `europe-uk`, `asia-pacific`); the CLI default is invalid. The scripts do |
-| **"I couldn't find that" for every question, and the test pane's trace shows `sharepoint_lexical_search` / `sharepoint_semantic_search` failing with "Knowledge search · unknown"** | **The signed-in user has no SharePoint-bearing license** (for example Business Premium). The search tools run as that user and fail; the agent then reports "not found", which hides the failure. An unlicensed **site owner** can still open files and fetch them by name, so it looks like a missing document. Assign a license, wait a while for it to reach search, and test as a licensed user. Microsoft publishes nothing on this for harness agents; it was established by testing the same agent as a licensed and an unlicensed user |
-| Search errors or "no results" for a licensed user on a **brand-new site**, while SharePoint's own search (run as a licensed user, not the owner) shows the documents | The agent's search was slow to cover a new site: two sites stayed unusable for hours for two users, while a new file added to a two-day-old site was usable in about 10 minutes. The transcript error is `NotFound in FederationWorkflow`; the same site worked about 12 hours later. Use an established site, or wait. Do not conclude "not indexed" from a search run as an unlicensed user |
-| The Agents SDK returns `404 Error discovering conversation endpoints` | The agent is not shared with the signed-in user: Copilot Studio → Share → **Can use**. It is not a denial from the platform |
+| **"I couldn't find that" for every question, and the test pane's trace shows `sharepoint_lexical_search` / `sharepoint_semantic_search` failing with "Knowledge search · unknown"** | **The signed-in user has no SharePoint-bearing license** (for example Business Premium). Assign a license, wait for it to reach search, and test as a licensed user. Microsoft publishes nothing on this for harness agents; it was established by testing |
+| Search errors or "no results" for a licensed user on a **brand-new site**, while SharePoint's own search (run as a licensed user) shows the documents | The agent's search was slow to cover a new site: two new sites stayed unusable for hours (transcript error `NotFound in FederationWorkflow`) and worked about 12 hours later, while a new file on an established site was usable in about 10 minutes. Use an established site, or wait. Do not conclude "not indexed" from a search run as an unlicensed user |
+| The Agents SDK returns `404 Error discovering conversation endpoints` | The agent is not shared with the signed-in user: Copilot Studio → Share → **Can use** |
+| The agent stops answering everyone | Its Copilot Credits cap was reached (admin center: Licensing > Copilot Studio > Manage Agents shows *Over Limit*). Raise the cap or wait for the month to roll over |
 | `pac copilot publish` fails "A required argument --bot is missing" | Pass the agent: `pac copilot publish --bot <schema or id>`. The script does |
-| `pac` fails "You must install .NET" after a Homebrew upgrade | `pac` 2.16 targets .NET 10; with only .NET 11 installed set `DOTNET_ROLL_FORWARD=Major` and `DOTNET_ROOT=/opt/homebrew/opt/dotnet/libexec` |
+| `pac` publish fails with `Invalid response format` | A `pac` 2.16.1 status-poller bug after a successful publish; `provision.sh` checks the bot's sync status and passes if the publish succeeded |
 | Re-provisioning fails because the site name exists | A deleted group is soft-deleted for 30 days. Use `teardown.sh`, which purges, or purge it in Entra |
 | Denied user can open or retrieve a labeled file | The file was labeled before SharePoint could process it. Label a never-labeled file inside SharePoint ([guide](guides/purview.md)) |
 | No Sensitivity button in Word for the web | Use the account the label is published to, a normal (not incognito) window, Editing mode; see the guide |
 | Deploy fails with `AADSTS700213: No matching federated identity record` | The credential's subject lacks GitHub's immutable owner/repo IDs. Re-run `scripts/setup_entra_app.sh --github-repo owner/repo --github-environment dev` |
-| Deploy says the agent was not found (`--no-create`) | The deploying app cannot read it, usually a user-level role; see the role note under CI/CD |
+| Deploy says the agent was not found (`--no-create`) | The deploying app cannot read it, usually a user-level role; it needs `System Customizer` |
+| An eval fails with a scorer self-test or judge error | The scorer could not tell known-good from known-bad answers, or its endpoint failed; the run fails rather than report numbers. Run the `Scorer self-tests` workflow to isolate it |
 | SharePoint REST or file download returns 401 | Expected with an Azure CLI token. The scripts use Microsoft Graph |
 | `GID: bad math expression` in zsh | `GID` is read-only in zsh; use another variable name |
 
@@ -565,9 +269,9 @@ Set in `.env` (see `.env.example`).
 | Agent runtime | Foundry hosted agent (Python) | Copilot Studio harness agent, defined as YAML via `pac` | Bedrock Agents | Google ADK + Cloud Run |
 | RAG | Azure AI Search | SharePoint knowledge (Microsoft Search) | Bedrock Knowledge Bases | Vertex AI Search |
 | Vector store | AI Search (built in) | Managed by the platform | OpenSearch Serverless | Vertex AI Search (built in) |
-| CI auth | Azure OIDC | Entra federated credential (GitHub OIDC; deploy verified) | GitHub OIDC | Workload Identity Federation |
-| Eval judge | GPT-5 + HHEM | HHEM plus an LLM judge (`gpt-4.1`, claim mode) in `scripts/`, both running; built-in Agent Evaluation rejects this agent type | Amazon Nova Pro | Gemini 3.5 Flash |
-| Memory | Foundry Memory Store | Copilot Studio Memory (`enableMemory`), per user; verified | Bedrock session-summary memory | ADK session/user state |
+| CI auth | Azure OIDC | Entra federated credential (GitHub OIDC) | GitHub OIDC | Workload Identity Federation |
+| Eval judge | GPT-5 + HHEM | HHEM + an LLM judge (`gpt-4.1`, claim by claim); built-in Agent Evaluation rejects this agent type | Amazon Nova Pro | Gemini 3.5 Flash |
+| Memory | Foundry Memory Store | Copilot Studio Memory (`enableMemory`), per user | Bedrock session-summary memory | ADK session/user state |
 | Protected mode | `KB_ACCESS_MODE=purview` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` |
 | Protection mechanism | Purview labels via Foundry IQ | SharePoint permissions + encrypted Purview labels | Knowledge Base document ACLs | Agent Search document ACLs |
 | Who proves the user | The user's delegated token, checked by AI Search | The user's Entra sign-in, checked by the platform | Your backend (API Gateway JWT authorizer) | The user's Google token, checked by Agent Search |

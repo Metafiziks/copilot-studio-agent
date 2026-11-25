@@ -207,10 +207,52 @@ CASES = [{"id": "a", "question": "q a", "expected_sources": ["loto.docx"]},
          {"id": "b", "question": "q b", "expected_sources": ["loto.docx"]}]
 
 
+def both_modes(verdict, claims):
+    """A transport that answers the whole-answer prompt with verdict and the claim prompt with claims."""
+    def transport(url, headers, body):
+        system = json.loads(body)["messages"][0]["content"]
+        return OK(claims if system == judge.CLAIMS_PROMPT else verdict)
+    return transport
+
+
 def test_judge_results_attach_a_verdict_to_answered_cases_only():
     results = [answered("a"), answered("b", text="", error="empty answer")]
-    ev.judge_results(results, CASES, {"loto": "text"}, CFG, transport=scripted(OK(verdict_json(5, 4, 3))), sleep=lambda s: None)
+    transport = both_modes(verdict_json(5, 4, 3), claims_json("stated", "added"))
+    ev.judge_results(results, CASES, {"loto": "text"}, CFG, transport=transport, sleep=lambda s: None)
     assert results[0]["judge"]["relevance"] == 0.75 and "judge" not in results[1]
+    assert results[0]["judge"]["claims"]["stated_share"] == 0.5
+    assert results[0]["judge"]["claims"]["not_stated"] == [{"claim": "c1", "label": "added"}]
+
+
+def test_a_claim_judge_failure_is_a_judge_error():
+    results = [answered("a")]
+    ev.judge_results(results, CASES, {"loto": "text"}, CFG, transport=both_modes(verdict_json(), "OK"), sleep=lambda s: None)
+    assert "error" in results[0]["judge"]["claims"]
+    summary = ev.summarize(results, judge_selftest={"passed": True})
+    assert summary["judge_errors"] == ["a"] and not summary["passed"]
+
+
+def with_claims(result, stated, added=0, contradicted=0):
+    total = stated + added + contradicted
+    result["judge"]["claims"] = {"stated_share": round(stated / total, 3),
+                                 "counts": {"stated": stated, "added": added, "contradicted": contradicted}}
+    return result
+
+
+def test_summary_gates_on_the_stated_share():
+    ok = ev.summarize([with_claims(judged("a", 1, 1, 1), 10), with_claims(judged("b", 1, 1, 1), 9, added=1)],
+                      judge_selftest={"passed": True})
+    assert ok["metrics"]["judge_stated_share"] == 0.95 and ok["metrics"]["judge_added_per_answer"] == 0.5 and ok["passed"]
+    elaborate = ev.summarize([with_claims(judged("a", 1, 1, 1), 2, added=1), with_claims(judged("b", 1, 1, 1), 10)],
+                             judge_selftest={"passed": True})
+    assert not elaborate["checks"]["judge_stated_share"] and not elaborate["passed"]
+
+
+def test_one_contradicted_claim_fails_the_run():
+    results = [with_claims(judged(str(i), 1, 1, 1), 10) for i in range(9)] + [with_claims(judged("x", 1, 1, 1), 19, contradicted=1)]
+    summary = ev.summarize(results, judge_selftest={"passed": True})
+    assert summary["checks"]["judge_stated_share"] and summary["metrics"]["judge_contradicted_claims"] == 1
+    assert not summary["checks"]["no_contradicted_claims"] and not summary["passed"]
 
 
 def test_a_judge_failure_is_recorded_on_the_case_and_never_hidden():

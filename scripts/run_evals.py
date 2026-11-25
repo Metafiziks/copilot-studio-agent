@@ -27,6 +27,8 @@ Evaluation rejects this agent type, README > Evaluations, so the scoring lives h
                             PyTorch, no key
   Judge faithfulness >= 0.85, relevance >= 0.85, completeness >= 0.60, min faithfulness >= 0.50
                             scripts/judge.py: an LLM judge, active only when JUDGE_API_KEY is set
+  Judge stated share >= 0.95, and no contradicted claim
+                            the judge's claim mode: each statement labelled stated / added / contradicted
   Self-tests                before scoring, each scorer must rate a known-good, a known-invented and a
                             known-off-topic answer correctly; if it cannot, the run fails
 
@@ -54,8 +56,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # agent stay close to the documents?) and there is deliberately no per-answer floor: the same correct answer
 # scored 0.31, 0.16 and 0.07 across runs. Telling harmless paraphrase from fabrication is the LLM judge's job.
 HHEM_THRESHOLDS = {"hhem_mean": 0.65}
+# The judge's 1-5 whole-answer scores saturate: all 54 saved answers scored 5/5/5. Claim mode separates the runs:
+# stated share 0.918, 0.958 and 0.955 before the instructions were tightened, 0.986 and 0.988 after (gpt-4.1).
+# 0.95 fails the most elaborate run; tighter would fail correct runs on noise (one added claim in a 5-claim
+# answer costs a 12-answer run about 0.015). Any claim the judge finds contradicting the documents fails the run.
 JUDGE_THRESHOLDS = {"judge_faithfulness": 0.85, "judge_relevance": 0.85, "judge_completeness": 0.60,
-                    "judge_min_faithfulness": 0.50}
+                    "judge_min_faithfulness": 0.50, "judge_stated_share": 0.95}
 THRESHOLDS = {"keyword_recall": 0.65, "citation_recall": 0.60, "p95_latency_ms": 45_000, "memory_recall": 1.0,
               **HHEM_THRESHOLDS, **JUDGE_THRESHOLDS}
 
@@ -175,6 +181,15 @@ def summarize(results: list[dict], thresholds: dict = THRESHOLDS, memory_results
             checks[f"judge_{dim}"] = bool(scored) and metrics[f"judge_{dim}"] >= thresholds[f"judge_{dim}"]
         metrics["judge_min_faithfulness"] = min((j["faithfulness"] for j in scored), default=0.0)
         checks["judge_min_faithfulness"] = bool(scored) and metrics["judge_min_faithfulness"] >= thresholds["judge_min_faithfulness"]
+        claimed = [j["claims"] for j in scored if "claims" in j]
+        judge_errors += [r["id"] for r in judged if "error" in r["judge"].get("claims", {})]
+        claimed = [c for c in claimed if "error" not in c]
+        if claimed:
+            metrics["judge_stated_share"] = round(sum(c["stated_share"] for c in claimed) / len(claimed), 3)
+            metrics["judge_added_per_answer"] = round(sum(c["counts"]["added"] for c in claimed) / len(claimed), 2)
+            metrics["judge_contradicted_claims"] = sum(c["counts"]["contradicted"] for c in claimed)
+            checks["judge_stated_share"] = metrics["judge_stated_share"] >= thresholds["judge_stated_share"]
+            checks["no_contradicted_claims"] = metrics["judge_contradicted_claims"] == 0
         checks["no_judge_errors"] = not judge_errors
     if judge_selftest is not None:
         checks["judge_selftest"] = bool(judge_selftest.get("passed"))
@@ -216,8 +231,11 @@ def hhem_results(results: list[dict], cases: list[dict], corpus: dict[str, str],
 
 
 def judge_results(results: list[dict], cases: list[dict], corpus: dict[str, str], cfg: dict,
-                  transport=None, sleep=None) -> None:
-    """Attach a "judge" verdict to every answered result, in place. A judge failure is recorded, not hidden."""
+                  transport=None, sleep=None, claims: bool = True) -> None:
+    """Attach a "judge" verdict to every answered result, in place. A judge failure is recorded, not hidden.
+
+    With claims (the default) the judge also labels each statement stated / added / contradicted.
+    """
     import judge
 
     kwargs = {k: v for k, v in (("transport", transport), ("sleep", sleep)) if v is not None}
@@ -235,6 +253,20 @@ def judge_results(results: list[dict], cases: list[dict], corpus: dict[str, str]
         except judge.JudgeError as exc:
             result["judge"] = {"error": str(exc)}
             print(f"[judge {i}/{len(results)}] {result['id']}: JUDGE ERROR {exc}", file=sys.stderr, flush=True)
+            continue
+        if not claims:
+            continue
+        try:
+            labelled = judge.judge_claims(case["question"], result["answer"], documents, cfg, **kwargs)
+            result["judge"]["claims"] = {
+                "stated_share": labelled["stated_share"], "counts": labelled["counts"],
+                "not_stated": [c for c in labelled["claims"] if c["label"] != "stated"][:5]}
+            print(f"[judge {i}/{len(results)}] {result['id']}: stated={labelled['stated_share']:.2f} "
+                  f"added={labelled['counts']['added']} contradicted={labelled['counts']['contradicted']}",
+                  file=sys.stderr, flush=True)
+        except judge.JudgeError as exc:
+            result["judge"]["claims"] = {"error": str(exc)}
+            print(f"[judge {i}/{len(results)}] {result['id']}: CLAIM JUDGE ERROR {exc}", file=sys.stderr, flush=True)
 
 
 def prepare_scorers(hhem_mode: str, judge_mode: str, docs_dir: Path, env=None, hhem_mod=None, judge_mod=None) -> dict:
@@ -280,7 +312,10 @@ def prepare_scorers(hhem_mode: str, judge_mode: str, docs_dir: Path, env=None, h
             unavailable(judge_mode, no_docs, "judge_note")
         else:
             try:
-                out["judge_selftest"] = judge_mod.selftest(cfg)
+                whole = judge_mod.selftest(cfg)
+                by_claim = judge_mod.claims_selftest(cfg)
+                out["judge_selftest"] = {**whole, "passed": whole["passed"] and by_claim["passed"],
+                                         "claims_selftest": {k: by_claim[k] for k in ("passed", "checks", "stated_share")}}
                 out["judge_cfg"] = cfg
                 print(f"judge self-test ({cfg['model']}): {'passed' if out['judge_selftest']['passed'] else 'FAILED ' + str(out['judge_selftest']['scores'])}",
                       file=sys.stderr, flush=True)

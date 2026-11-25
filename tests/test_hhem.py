@@ -187,13 +187,14 @@ def fake_hhem(passed=True, unavailable=False):
                            selftest=lambda m: {"passed": passed, "scores": {}})
 
 
-def fake_judge(cfg=None, selftest=None, error=None):
+def fake_judge(cfg=None, selftest=None, error=None, claims_selftest=None):
     def run_selftest(c):
         if error:
             raise judge.JudgeError(error)
         return selftest or {"passed": True, "scores": {}}
     return SimpleNamespace(load_corpus=lambda d: {"loto": "text"}, resolve_config=lambda env=None: cfg,
-                           selftest=run_selftest, JudgeError=judge.JudgeError)
+                           selftest=run_selftest, JudgeError=judge.JudgeError,
+                           claims_selftest=lambda c: claims_selftest or {"passed": True, "checks": {}, "stated_share": {}})
 
 
 def prepare(hhem_mode, judge_mode, hhem_mod=None, judge_mod=None):
@@ -238,3 +239,10 @@ def test_an_unreachable_judge_is_skipped_in_auto_but_fails_in_on():
     assert out["judge_cfg"] is None and "HTTP 500" in out["judge_note"]
     out = prepare("off", "on", judge_mod=fake_judge(cfg={"model": "m"}, error="HTTP 500"))
     assert out["judge_selftest"]["passed"] is False and "HTTP 500" in out["judge_selftest"]["error"]
+
+
+def test_the_run_fails_if_the_judge_cannot_tell_added_detail_from_stated_fact():
+    bad = {"passed": False, "checks": {"added_detail_is_caught": False}, "stated_share": {}}
+    out = prepare("off", "auto", judge_mod=fake_judge(cfg={"model": "m"}, claims_selftest=bad))
+    assert out["judge_selftest"]["passed"] is False
+    assert out["judge_selftest"]["claims_selftest"]["checks"] == {"added_detail_is_caught": False}

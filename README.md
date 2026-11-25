@@ -14,8 +14,9 @@ corpus, same eval cases, same protected-mode idea, different platform.
 > as a licensed user), and **telemetry** (environment-level export to Application Insights, verified).
 > **Faithfulness is scored with HHEM**, an open model that runs in CI with no key. It found the agent
 > elaborating beyond the documents (claim-level mean 0.61 to 0.68); tightening the instructions raised it to
-> 0.77, gated at 0.65. It is a strict trend metric (see Evaluations). An **LLM judge** (GPT-4.1) passes its self-test and
-> scored all 54 saved answers 5/5/5, so it is a coarse check, not a trend metric (see Evaluations). Copilot Studio's built-in graders reject this agent
+> 0.77, gated at 0.65. It is a strict trend metric (see Evaluations). An **LLM judge** (GPT-4.1) confirms it: labelling
+> each statement, it found 0.92 to 0.96 stated in the documents before tightening and 0.99 after, with no
+> contradictions (gated at 0.95 and zero contradicted). Its 1 to 5 overall scores saturate (all 5/5/5). Copilot Studio's built-in graders reject this agent
 > type (see Evaluations). **Not built:** anomaly detection.
 > **Two things will silently break it:** a user without a SharePoint-bearing license, and a brand-new
 > SharePoint site (see Troubleshooting). Each section says exactly where it stands.
@@ -163,7 +164,8 @@ documents in `docs/`:
 | Scorer | What it measures | Needs | Status |
 |---|---|---|---|
 | **HHEM** (`scripts/hhem.py`) | Probability (0 to 1) that each claim in an answer is consistent with its source documents, averaged. Vectara's HHEM-2.1-open: Apache-2.0, pinned revision, runs on CPU | PyTorch (`requirements-hhem.txt`); no key | **Running in CI.** Gate: claim-level mean ≥ 0.65; the worst single answer is reported, not gated |
-| **LLM judge** (`scripts/judge.py`) | Faithfulness, relevance and completeness, 1 to 5 each | `JUDGE_API_KEY` for any OpenAI-compatible endpoint | Self-test passes against a live model (`gpt-4.1`: faithful 5, invented 1, off-topic relevance 1). Scored all 54 saved answers 5/5/5, so it does not separate the old and tightened instructions (see below). GitHub Models is not usable here (it answers every request with a bare `OK`) |
+| **LLM judge** (`scripts/judge.py`) | Faithfulness, relevance and completeness, 1 to 5 each | `JUDGE_API_KEY` for any OpenAI-compatible endpoint | **Runs live** (`gpt-4.1`). The 1 to 5 scores saturate (every saved answer 5/5/5), so they only catch a regression |
+| **LLM judge, claim mode** (`scripts/judge.py`) | Each statement labelled stated, added or contradicted; the share stated | Same key | **Runs live.** Gate: stated share ≥ 0.95 and no contradicted claim. Separates the runs: 0.92 to 0.96 before tightening, 0.99 after |
 
 Each scorer must pass a **self-test** before it scores anything: HHEM scored a faithful answer 0.90, an
 invented one 0.03 and an off-topic one 0.005. If a scorer cannot tell known-good from known-bad answers the
@@ -189,6 +191,25 @@ missed embellishments a reader can find: "Production must halt immediately upon 
 "physically separated and held" are not in the line clearance standard (which says only "Stop the line, segregate
 affected product, ..."), and neither lowered the score. A 1 to 5 whole-answer score saturates on correct answers,
 so use the judge to catch a regression (one answer dropping to 3 or below fails the run) and HHEM to track drift.
+
+**Claim mode closes that gap.** `python scripts/judge.py rescore --claims` asks the judge to list each statement in
+the answer and label it stated (the documents say it, in any words), added (an explanation, reason, example or
+detail they do not contain, however plausible) or contradicted. Its self-test requires it to rate a faithful answer
+above the same answer with added detail (1.00 against 0.40 with `gpt-4.1`) and to catch an invented one (0.00). On
+the 54 saved answers:
+
+| Run | Stated share | Added statements per answer | Contradicted |
+|---|---|---|---|
+| Before tightening (run 1, 2, 3) | 0.918, 0.958, 0.955 | 0.58, 0.42, 0.33 | 0 |
+| After ("name once", final "cite") | 0.986, 0.988 | 0.08, 0.08 | 0 |
+
+It agrees with HHEM on direction and finds what a reader would: the old conveyor answer adds "tears, fraying" and
+"on or around the conveyor" to a manual that lists only "unusual noise, belt damage, loose fasteners, foreign
+objects". It is noisy on a single answer (it let "halt immediately" through), so the gate is on the run mean, at
+0.95: that fails the most elaborate old run, and a stricter value would fail correct runs on noise, since one
+added claim in a five-claim answer costs a 12-answer run about 0.015. No answer in any run contradicted the
+documents. The eval stores the statements that were not stated in `eval_results.json` under
+`judge.claims.not_stated`.
 
 **Fixing it: tighter instructions, measured.** The agent's instructions said to answer only from the
 documents, yet it elaborated. They now also say to use the documents' wording, add no explanations, examples or
@@ -263,7 +284,7 @@ How each Azure metric maps:
 | Azure metric | Copilot Studio | Status |
 |---|---|---|
 | Faithfulness (GPT-5 judge) | HHEM consistency (`scripts/hhem.py`); built-in General quality rejects this agent type | **0.61 to 0.68** before tightening the agent's instructions, **0.77** after (claim-level mean) |
-| Answer relevance (GPT-5 judge) | LLM judge (`scripts/judge.py`); built-in General quality rejects this agent type | LLM judge on the 54 saved answers: **1.00 on every run**, which is a ceiling, not a measurement |
+| Answer relevance (GPT-5 judge) | LLM judge (`scripts/judge.py`); built-in General quality rejects this agent type LLM judge on the 54 saved answers: **1.00 on every run**, a ceiling. Claim mode (faithfulness): stated share **0.92 to 0.96** before tightening, **0.99** after |
 | Keyword recall | `scripts/run_evals.py` (also built-in Keyword match) | **0.924** (0.986 before the instructions were tightened) |
 | Citation recall | `scripts/run_evals.py`; citations appear as file names in the reply payload | **1.000** |
 | p95 latency | `scripts/run_evals.py` | **29.2 s** |
@@ -409,7 +430,7 @@ set up by hand and are not scripted.
 | Credit limits | 1,000 Copilot Credits per agent with *Stop usage* at 100% and an 80% notification, on both `OL Memory Agent` entries (dev and e2e), set in the admin center under Licensing > Copilot Studio > Manage Agents. The agent only appeared there after it had billed usage (631 and 398 credits by then). At about 4 credits per turn, a daily CI eval of 13 turns is roughly 50 credits, so budget the cap |
 | Purview audit | Not evaluated. The Audit page reported it could not confirm that activity is being recorded and offered to start recording, a tenant-wide compliance setting that was left alone |
 | `eval.yml` | manual | Installs CPU PyTorch (cached), runs `scripts/run_evals.py --hhem on` and uploads the results; see the constraint below |
-| `scorers.yml` | manual | Runs the HHEM (and, with a key, LLM judge) self-tests alone: no agent, no tenant access |
+| `scorers.yml` | manual | Runs the HHEM (and, with a key, LLM judge) self-tests and re-scores the saved answers in `tests/fixtures/agent_answers.json`: no agent, no tenant access |
 
 One-time setup, all scriptable except the last two:
 
@@ -497,7 +518,7 @@ Set in `.env` (see `.env.example`).
 | SharePoint pipeline | Site create (idempotent), upload with subfolders, delete with purge, exercised for real |
 | Telemetry | Environment-level export to Application Insights verified on this agent (prompt, reply, search calls, user); Dataverse transcripts also hold harness conversations (see Observability) |
 | `eval.yml` | Ran on GitHub as the licensed test user from the stored sign-in cache: keyword recall 0.949, citation recall 1.000, p95 30.3 s, memory recall 1.00; passed. Run-to-run keyword recall varied (0.986 locally, 0.949 in CI) because the answers are model-generated |
-| HHEM scoring | Ran in CI on the agent's real answers (six runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; claim-level means 0.68, 0.65, 0.61 and 0.58 before, 0.84 and 0.77 after tightening the agent's instructions. The weakest claims were elaborations the documents lack and some harmless restatements. The LLM judge (`gpt-4.1`) passed its self-test live and scored all 54 saved answers 5/5/5, including ones with elaboration HHEM flags |
+| HHEM scoring | Ran in CI on the agent's real answers (six runs): faithful 0.90 / invented 0.03 / off-topic 0.005 in the self-test; claim-level means 0.68, 0.65, 0.61 and 0.58 before, 0.84 and 0.77 after tightening the agent's instructions. The weakest claims were elaborations the documents lack and some harmless restatements. The LLM judge (`gpt-4.1`) passed both self-tests live; its overall scores were 5/5/5 on all 54 saved answers, and claim mode separated the runs (stated share 0.92 to 0.96 before, 0.99 after, no contradictions) |
 | New-site behavior | Two sites created hours earlier gave the agent search errors for two users while SharePoint search showed their documents; a new file in a two-day-old site was retrievable in about 10 minutes. Cause not confirmed |
 
 ## Troubleshooting
@@ -530,7 +551,7 @@ Set in `.env` (see `.env.example`).
 | RAG | Azure AI Search | SharePoint knowledge (Microsoft Search) | Bedrock Knowledge Bases | Vertex AI Search |
 | Vector store | AI Search (built in) | Managed by the platform | OpenSearch Serverless | Vertex AI Search (built in) |
 | CI auth | Azure OIDC | Entra federated credential (GitHub OIDC; deploy verified) | GitHub OIDC | Workload Identity Federation |
-| Eval judge | GPT-5 + HHEM | HHEM (running) plus an optional LLM judge (built, not yet run) in `scripts/`; built-in Agent Evaluation rejects this agent type | Amazon Nova Pro | Gemini 3.5 Flash |
+| Eval judge | GPT-5 + HHEM | HHEM plus an LLM judge (`gpt-4.1`, claim mode) in `scripts/`, both running; built-in Agent Evaluation rejects this agent type | Amazon Nova Pro | Gemini 3.5 Flash |
 | Memory | Foundry Memory Store | Copilot Studio Memory (`enableMemory`), per user; verified | Bedrock session-summary memory | ADK session/user state |
 | Protected mode | `KB_ACCESS_MODE=purview` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` | `KB_ACCESS_MODE=protected` |
 | Protection mechanism | Purview labels via Foundry IQ | SharePoint permissions + encrypted Purview labels | Knowledge Base document ACLs | Agent Search document ACLs |

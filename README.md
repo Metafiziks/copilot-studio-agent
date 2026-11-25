@@ -132,14 +132,23 @@ caller has none, and for an unlicensed user every question comes back "not found
 **Result** (Jane, licensed; sample corpus), before and after tightening the agent's instructions (see Faithfulness
 and quality scoring):
 
-| Metric | Before (dev) | After (e2e) | Gate |
-|---|---|---|---|
-| Keyword recall | **0.986** | **0.924** | ≥ 0.65, passes |
-| Citation recall | **1.000** | **1.000** | ≥ 0.60, passes |
-| p95 latency | **25.7 s** | **29.2 s** | ≤ 45 s, passes |
-| Memory recall | **1.00** | **1.00** | = 1.0, passes |
-| HHEM claim-level mean | 0.61 to 0.68 | **0.77** (measured on the same answers in CI) | ≥ 0.65, passes |
-| Failed calls | 0 | 0 | 0, passes |
+| Metric | Before (dev) | After (e2e) | Live CI eval, after (dev) | Gate |
+|---|---|---|---|---|
+| Keyword recall | **0.986** | **0.924** | **0.949** | ≥ 0.65, passes |
+| Citation recall | **1.000** | **1.000** | **1.000** | ≥ 0.60, passes |
+| p95 latency | **25.7 s** | **29.2 s** | **20.9 s** | ≤ 45 s, passes |
+| Memory recall | **1.00** | **1.00** | **1.00** | = 1.0, passes |
+| HHEM claim-level mean | 0.61 to 0.68 | **0.77** (measured on the same answers in CI) | **0.82** | ≥ 0.65, passes |
+| LLM judge, stated share | 0.92 to 0.96 (re-scored) | 0.99 (re-scored) | **0.974** | ≥ 0.95, passes |
+| LLM judge, contradicted claims | 0 | 0 | **0** | 0, passes |
+| LLM judge faithfulness / relevance / completeness | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | **0.98 / 1.00 / 1.00** | ≥ 0.85 / 0.85 / 0.60, passes |
+| Failed calls | 0 | 0 | 0 | 0, passes |
+
+The live CI eval (Actions run 45707615037, `eval.yml`) scored every gate above but was marked failed by one
+scorer error: on one answer the judge's claim-mode reply left a label blank. The judge now gets one correction
+round for a malformed reply; re-scored with that fix, the same 12 answers judge with no errors (stated share
+0.976). Its one flagged answer is a real find: asked about a line clearance error, the agent added "for Line 2
+(second shift)", which is the eval user's stored preference, not something the standard says.
 
 **How it got here (so you do not repeat it).** The first run, against the e2e site, scored 0.06 and 0.0.
 The cause was not the agent being wrong. Two checks had been misleading:
@@ -202,6 +211,7 @@ the 54 saved answers:
 |---|---|---|---|
 | Before tightening (run 1, 2, 3) | 0.918, 0.958, 0.955 | 0.58, 0.42, 0.33 | 0 |
 | After ("name once", final "cite") | 0.986, 0.988 | 0.08, 0.08 | 0 |
+| Live CI eval on dev, final wording | 0.974 (0.976 re-scored) | 0.17 | 0 |
 
 It agrees with HHEM on direction and finds what a reader would: the old conveyor answer adds "tears, fraying" and
 "on or around the conveyor" to a manual that lists only "unusual noise, belt damage, loose fasteners, foreign

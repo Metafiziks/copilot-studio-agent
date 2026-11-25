@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Three judges, one agent</title>
+  <desc id="desc">HHEM, scoring claim by claim, rose from 0.61 to 0.68 before the agent's instructions were tightened to 0.77 to 0.84 after. GPT-4.1 scoring whole answers from 1 to 5 gave all 54 saved answers 5/5/5, before and after. GPT-4.1 labelling each statement found 0.918 to 0.958 of statements in the documents before and 0.974 to 0.990 after, with none contradicting them.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#abd3ce" stroke-opacity=".10" stroke-width="1"/>
+    </pattern>
+    <style>
+      .mono{font-family:Menlo,'Courier New',monospace;font-weight:700}
+      .display{font-family:Baskerville,Georgia,serif;font-weight:700}
+      .sans{font-family:'Avenir Next','Helvetica Neue',sans-serif;font-weight:500}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#101c1f"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+
+  <text class="display" x="70" y="94" font-size="54" fill="#faf2dc" letter-spacing="-1">Three judges walk into a bar chart.</text>
+  <text class="sans" x="70" y="138" font-size="26" fill="#add2c6">Same saved answers, before and after I told the agent to stop embellishing.</text>
+  <rect x="1140" y="62" width="22" height="22" fill="#5d6f6c"/><text class="mono" x="1172" y="80" font-size="17" fill="#b9d1c5">BEFORE (3 runs)</text>
+  <rect x="1140" y="98" width="22" height="22" fill="#9ce3ce"/><text class="mono" x="1172" y="116" font-size="17" fill="#9ce3ce">AFTER (4 runs, 2 live)</text>
+
+  <!-- HHEM -->
+  <rect x="70" y="180" width="460" height="560" rx="12" fill="#152728" stroke="#709a91" stroke-width="2"/>
+  <text class="mono" x="96" y="222" font-size="17" fill="#e8c86f" style="letter-spacing:2px">1 · HHEM, CLAIM BY CLAIM</text>
+  <text class="sans" x="96" y="254" font-size="18" fill="#add2c6">open model, no API key · mean, 0 to 1</text>
+  <path d="M96 600H500" stroke="#74958e" stroke-width="2"/>
+  <path d="M96 424.5H500" stroke="#e8c86f" stroke-width="2" stroke-dasharray="8 7"/><text class="mono" x="500" y="416.5" font-size="13" fill="#e8c86f" text-anchor="end">gate 0.65</text>
+    <rect x="104" y="416.4" width="36" height="183.6" fill="#5d6f6c"/>
+    <text class="mono" x="122.0" y="406.4" font-size="14" fill="#b9d1c5" text-anchor="middle">0.68</text>
+    <rect x="154" y="424.5" width="36" height="175.5" fill="#5d6f6c"/>
+    <text class="mono" x="172.0" y="414.5" font-size="14" fill="#b9d1c5" text-anchor="middle">0.65</text>
+    <rect x="204" y="435.3" width="36" height="164.7" fill="#5d6f6c"/>
+    <text class="mono" x="222.0" y="425.3" font-size="14" fill="#b9d1c5" text-anchor="middle">0.61</text>
+    <rect x="276" y="373.2" width="36" height="226.8" fill="#9ce3ce"/>
+    <text class="mono" x="294.0" y="363.2" font-size="14" fill="#9ce3ce" text-anchor="middle">0.84</text>
+    <rect x="326" y="392.1" width="36" height="207.9" fill="#9ce3ce"/>
+    <text class="mono" x="344.0" y="382.1" font-size="14" fill="#9ce3ce" text-anchor="middle">0.77</text>
+    <rect x="376" y="378.6" width="36" height="221.4" fill="#9ce3ce"/>
+    <text class="mono" x="394.0" y="368.6" font-size="14" fill="#9ce3ce" text-anchor="middle">0.82</text>
+    <rect x="426" y="381.3" width="36" height="218.7" fill="#9ce3ce"/>
+    <text class="mono" x="444.0" y="371.3" font-size="14" fill="#9ce3ce" text-anchor="middle">0.81</text>
+  <text class="mono" x="179" y="628" font-size="14" fill="#b9d1c5" text-anchor="middle">BEFORE</text>
+  <text class="mono" x="387" y="628" font-size="14" fill="#9ce3ce" text-anchor="middle">AFTER</text>
+  <text class="sans" x="96" y="676" font-size="18" fill="#e1ebe0">Strict. Scored “all guards are properly</text>
+  <text class="sans" x="96" y="702" font-size="18" fill="#e1ebe0">installed” 0.02. A pedant. A useful one.</text>
+
+  <!-- whole-answer judge -->
+  <rect x="570" y="180" width="460" height="560" rx="12" fill="#152728" stroke="#ff9d79" stroke-width="2"/>
+  <text class="mono" x="596" y="222" font-size="17" fill="#e8c86f" style="letter-spacing:2px">2 · GPT-4.1, WHOLE ANSWER</text>
+  <text class="sans" x="596" y="254" font-size="18" fill="#add2c6">faithful / relevant / complete, 1 to 5</text>
+  <text class="display" x="800" y="420" font-size="124" fill="#ff9d79" text-anchor="middle">5/5/5</text>
+  <text class="mono" x="800" y="476" font-size="20" fill="#faf2dc" text-anchor="middle">54 of 54 answers</text>
+  <text class="mono" x="800" y="508" font-size="20" fill="#faf2dc" text-anchor="middle">before AND after</text>
+  <text class="sans" x="596" y="676" font-size="18" fill="#e1ebe0">Including “production must halt immediately”,</text>
+  <text class="sans" x="596" y="702" font-size="18" fill="#e1ebe0">which the standard never says. Golden retriever.</text>
+
+  <!-- claim mode -->
+  <rect x="1070" y="180" width="460" height="560" rx="12" fill="#152728" stroke="#9ce3ce" stroke-width="2"/>
+  <text class="mono" x="1096" y="222" font-size="17" fill="#e8c86f" style="letter-spacing:2px">3 · GPT-4.1, EACH STATEMENT</text>
+  <text class="sans" x="1096" y="254" font-size="18" fill="#add2c6">share found in the documents (axis from .85)</text>
+  <path d="M1096 600H1500" stroke="#74958e" stroke-width="2"/>
+  <path d="M1096 420.0H1500" stroke="#e8c86f" stroke-width="2" stroke-dasharray="8 7"/><text class="mono" x="1500" y="412.0" font-size="13" fill="#e8c86f" text-anchor="end">gate 0.95</text>
+    <rect x="1104" y="477.6" width="36" height="122.4" fill="#5d6f6c"/>
+    <text class="mono" x="1122.0" y="467.6" font-size="14" fill="#b9d1c5" text-anchor="middle">.918</text>
+    <rect x="1154" y="405.6" width="36" height="194.4" fill="#5d6f6c"/>
+    <text class="mono" x="1172.0" y="395.6" font-size="14" fill="#b9d1c5" text-anchor="middle">.958</text>
+    <rect x="1204" y="411.0" width="36" height="189.0" fill="#5d6f6c"/>
+    <text class="mono" x="1222.0" y="401.0" font-size="14" fill="#b9d1c5" text-anchor="middle">.955</text>
+    <rect x="1276" y="355.2" width="36" height="244.8" fill="#9ce3ce"/>
+    <text class="mono" x="1294.0" y="345.2" font-size="14" fill="#9ce3ce" text-anchor="middle">.986</text>
+    <rect x="1326" y="351.6" width="36" height="248.4" fill="#9ce3ce"/>
+    <text class="mono" x="1344.0" y="341.6" font-size="14" fill="#9ce3ce" text-anchor="middle">.988</text>
+    <rect x="1376" y="376.8" width="36" height="223.2" fill="#9ce3ce"/>
+    <text class="mono" x="1394.0" y="366.8" font-size="14" fill="#9ce3ce" text-anchor="middle">.974</text>
+    <rect x="1426" y="348.0" width="36" height="252.0" fill="#9ce3ce"/>
+    <text class="mono" x="1444.0" y="338.0" font-size="14" fill="#9ce3ce" text-anchor="middle">.990</text>
+  <text class="mono" x="1179" y="628" font-size="14" fill="#b9d1c5" text-anchor="middle">BEFORE</text>
+  <text class="mono" x="1387" y="628" font-size="14" fill="#9ce3ce" text-anchor="middle">AFTER</text>
+  <text class="sans" x="1096" y="676" font-size="18" fill="#e1ebe0">Same judge, smaller questions. Contradicted</text>
+  <text class="sans" x="1096" y="702" font-size="18" fill="#e1ebe0">statements in every run: zero.</text>
+
+  <text class="mono" x="70" y="800" font-size="19" fill="#9ce3ce" style="letter-spacing:2px">NO JUDGE FOUND A FABRICATED FACT. TWO OF THREE FOUND THE AGENT ADDING DETAIL.</text>
+  <text class="sans" x="70" y="848" font-size="18" fill="#74958e">Every scorer must pass a self-test first: known-faithful vs invented answers. Sample corpus, test tenant, Nov 2026.</text>
+</svg>

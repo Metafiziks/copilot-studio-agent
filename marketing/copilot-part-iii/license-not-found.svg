@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Same question, same agent, one license</title>
+  <desc id="desc">A SharePoint-licensed user asks the agent a question; its SharePoint search runs as that user and returns the lockout tagout procedure with a citation. A user without a SharePoint-bearing license asks the same question; the search tools fail with "Knowledge search · unknown" and the agent replies "I couldn't find that." That user could still open the file by name.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#abd3ce" stroke-opacity=".10" stroke-width="1"/>
+    </pattern>
+    <pattern id="hatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <path d="M0 0V14" stroke="#ff9d79" stroke-width="4" stroke-opacity=".28"/>
+    </pattern>
+    <marker id="arrM" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#9ce3ce"/></marker>
+    <marker id="arrC" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ff9d79"/></marker>
+    <style>
+      .mono{font-family:Menlo,'Courier New',monospace;font-weight:700}
+      .display{font-family:Baskerville,Georgia,serif;font-weight:700}
+      .sans{font-family:'Avenir Next','Helvetica Neue',sans-serif;font-weight:500}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#101c1f"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+
+  <text class="display" x="70" y="94" font-size="54" fill="#faf2dc" letter-spacing="-1">Same question. Same agent. One license.</text>
+  <text class="sans" x="70" y="138" font-size="26" fill="#add2c6">“How do I verify zero energy under lockout tagout?” asked by two signed-in users.</text>
+
+  <!-- licensed lane -->
+  <rect x="70" y="180" width="1460" height="270" rx="12" fill="#152728" stroke="#709a91" stroke-width="2"/>
+  <text class="mono" x="96" y="222" font-size="18" fill="#9ce3ce" style="letter-spacing:3px">USER WITH A SHAREPOINT-BEARING LICENSE</text>
+
+  <g transform="translate(96 252)">
+    <rect width="250" height="150" rx="10" fill="#0f1c1e" stroke="#9ce3ce" stroke-width="2"/>
+    <circle cx="125" cy="56" r="26" fill="none" stroke="#9ce3ce" stroke-width="3"/>
+    <circle cx="125" cy="49" r="9" fill="none" stroke="#9ce3ce" stroke-width="3"/>
+    <path d="M107 74c4-13 32-13 36 0" fill="none" stroke="#9ce3ce" stroke-width="3"/>
+    <text class="mono" x="125" y="120" font-size="17" fill="#e1ebe0" text-anchor="middle">signed in</text>
+  </g>
+  <path d="M356 327H436" stroke="#9ce3ce" stroke-width="4" marker-end="url(#arrM)"/>
+  <g transform="translate(446 252)">
+    <rect width="290" height="150" rx="10" fill="#0f1c1e" stroke="#709a91" stroke-width="2"/>
+    <text class="mono" x="145" y="52" font-size="17" fill="#e8c86f" text-anchor="middle">HARNESS AGENT</text>
+    <text class="sans" x="145" y="90" font-size="19" fill="#e1ebe0" text-anchor="middle">searches SharePoint</text>
+    <text class="sans" x="145" y="118" font-size="19" fill="#e1ebe0" text-anchor="middle">as this user</text>
+  </g>
+  <path d="M746 327H826" stroke="#9ce3ce" stroke-width="4" marker-end="url(#arrM)"/>
+  <g transform="translate(836 252)">
+    <rect width="270" height="150" rx="10" fill="#0f1c1e" stroke="#9ce3ce" stroke-width="2"/>
+    <text class="mono" x="135" y="52" font-size="17" fill="#9ce3ce" text-anchor="middle">SEARCH</text>
+    <text class="display" x="135" y="112" font-size="54" fill="#9ce3ce" text-anchor="middle">✓</text>
+  </g>
+  <path d="M1116 327H1196" stroke="#9ce3ce" stroke-width="4" marker-end="url(#arrM)"/>
+  <g transform="translate(1206 252)">
+    <rect width="298" height="150" rx="10" fill="#9ce3ce"/>
+    <text class="mono" x="20" y="44" font-size="16" fill="#10211f">ANSWER</text>
+    <text class="sans" x="20" y="82" font-size="19" fill="#10211f">Attempt to start with</text>
+    <text class="sans" x="20" y="108" font-size="19" fill="#10211f">normal controls. [1]</text>
+    <text class="mono" x="20" y="136" font-size="14" fill="#10211f">[1] lockout_tagout_procedure</text>
+  </g>
+
+  <!-- unlicensed lane -->
+  <rect x="70" y="478" width="1460" height="270" rx="12" fill="#152728" stroke="#ff9d79" stroke-width="2"/>
+  <text class="mono" x="96" y="520" font-size="18" fill="#ff9d79" style="letter-spacing:3px">USER WITHOUT ONE (MICROSOFT 365 BUSINESS PREMIUM)</text>
+
+  <g transform="translate(96 550)">
+    <rect width="250" height="150" rx="10" fill="#0f1c1e" stroke="#ff9d79" stroke-width="2"/>
+    <circle cx="125" cy="56" r="26" fill="none" stroke="#ff9d79" stroke-width="3"/>
+    <circle cx="125" cy="49" r="9" fill="none" stroke="#ff9d79" stroke-width="3"/>
+    <path d="M107 74c4-13 32-13 36 0" fill="none" stroke="#ff9d79" stroke-width="3"/>
+    <text class="mono" x="125" y="120" font-size="17" fill="#e1ebe0" text-anchor="middle">owns the site</text>
+  </g>
+  <path d="M356 625H436" stroke="#ff9d79" stroke-width="4" marker-end="url(#arrC)"/>
+  <g transform="translate(446 550)">
+    <rect width="290" height="150" rx="10" fill="#0f1c1e" stroke="#709a91" stroke-width="2"/>
+    <text class="mono" x="145" y="52" font-size="17" fill="#e8c86f" text-anchor="middle">HARNESS AGENT</text>
+    <text class="sans" x="145" y="90" font-size="19" fill="#e1ebe0" text-anchor="middle">searches SharePoint</text>
+    <text class="sans" x="145" y="118" font-size="19" fill="#e1ebe0" text-anchor="middle">as this user</text>
+  </g>
+  <path d="M746 625H826" stroke="#ff9d79" stroke-width="4" stroke-dasharray="9 7" marker-end="url(#arrC)"/>
+  <g transform="translate(836 550)">
+    <rect width="270" height="150" rx="10" fill="#0f1c1e" stroke="#ff9d79" stroke-width="2"/>
+    <rect x="12" y="12" width="246" height="126" rx="6" fill="url(#hatch)"/>
+    <text class="mono" x="135" y="52" font-size="17" fill="#ff9d79" text-anchor="middle">SEARCH</text>
+    <text class="mono" x="135" y="92" font-size="16" fill="#faf2dc" text-anchor="middle">Knowledge search</text>
+    <text class="mono" x="135" y="118" font-size="16" fill="#faf2dc" text-anchor="middle">· unknown</text>
+  </g>
+  <path d="M1116 625H1196" stroke="#ff9d79" stroke-width="4" stroke-dasharray="9 7" marker-end="url(#arrC)"/>
+  <g transform="translate(1206 550)">
+    <rect width="298" height="150" rx="10" fill="#0f1c1e" stroke="#ff9d79" stroke-width="3"/>
+    <text class="mono" x="20" y="44" font-size="16" fill="#ff9d79">ANSWER</text>
+    <text class="sans" x="20" y="86" font-size="24" fill="#faf2dc">“I couldn't find that.”</text>
+    <text class="sans" x="20" y="124" font-size="17" fill="#add2c6">(the error was only in the trace)</text>
+  </g>
+
+  <text class="sans" x="70" y="800" font-size="22" fill="#e1ebe0">That user could still open the file and fetch it by name, so it looked like a missing document, not a missing license.</text>
+  <text class="mono" x="70" y="852" font-size="19" fill="#e8c86f" style="letter-spacing:2px">COST: DAYS.   FIX: ONE LICENSE.   MICROSOFT DOCS ON THIS: NONE I COULD FIND.</text>
+</svg>

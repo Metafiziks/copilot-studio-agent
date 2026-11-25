@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">Live scorecard: the eval that finally went green</title>
+  <desc id="desc">The second live CI eval passed every gate: keyword recall 0.928, citation recall 1.00, p95 latency 21.2 seconds, memory recall 1.00, HHEM 0.81, 0.99 of statements found in the documents, zero contradicted. On the way: Copilot Studio's built-in evaluation returned Error for 12 of 12 cases, the agent hit its 1,000-credit cap and switched itself off, the first live run failed because the judge left a label blank, and the agent once mixed a stored memory into a document answer.</desc>
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#abd3ce" stroke-opacity=".10" stroke-width="1"/>
+    </pattern>
+    <style>
+      .mono{font-family:Menlo,'Courier New',monospace;font-weight:700}
+      .display{font-family:Baskerville,Georgia,serif;font-weight:700}
+      .sans{font-family:'Avenir Next','Helvetica Neue',sans-serif;font-weight:500}
+    </style>
+  </defs>
+  <rect width="1600" height="900" fill="#101c1f"/>
+  <rect width="1600" height="900" fill="url(#grid)"/>
+
+  <text class="display" x="70" y="94" font-size="54" fill="#faf2dc" letter-spacing="-1">Green, eventually.</text>
+  <text class="sans" x="70" y="138" font-size="26" fill="#add2c6">Live CI eval, 13 cases, a licensed test user, two scorers that each passed a self-test first.</text>
+
+  <!-- scorecard -->
+  <rect x="70" y="180" width="760" height="580" rx="12" fill="#152728" stroke="#9ce3ce" stroke-width="2"/>
+  <text class="mono" x="96" y="222" font-size="18" fill="#e8c86f" style="letter-spacing:3px">THE RUN THAT PASSED</text>
+  <g class="mono" font-size="16" fill="#b9d1c5">
+    <text x="96" y="268">METRIC</text><text x="640" y="268" text-anchor="end">GATE</text><text x="800" y="268" text-anchor="end">RESULT</text>
+  </g>
+  <path d="M96 284H804" stroke="#709a91" stroke-width="2"/>
+  <g class="mono" font-size="21" fill="#e1ebe0">
+    <text x="96" y="328">Keyword recall</text><text x="640" y="328" text-anchor="end" fill="#74958e">≥ 0.65</text><text x="800" y="328" text-anchor="end" fill="#9ce3ce">0.928</text>
+    <text x="96" y="374">Citation recall</text><text x="640" y="374" text-anchor="end" fill="#74958e">≥ 0.60</text><text x="800" y="374" text-anchor="end" fill="#9ce3ce">1.00</text>
+    <text x="96" y="420">p95 latency</text><text x="640" y="420" text-anchor="end" fill="#74958e">≤ 45 s</text><text x="800" y="420" text-anchor="end" fill="#9ce3ce">21.2 s</text>
+    <text x="96" y="466">Memory recall</text><text x="640" y="466" text-anchor="end" fill="#74958e">= 1.0</text><text x="800" y="466" text-anchor="end" fill="#9ce3ce">1.00</text>
+    <text x="96" y="512">HHEM, claim by claim</text><text x="640" y="512" text-anchor="end" fill="#74958e">≥ 0.65</text><text x="800" y="512" text-anchor="end" fill="#9ce3ce">0.81</text>
+    <text x="96" y="558">Statements in the documents</text><text x="640" y="558" text-anchor="end" fill="#74958e">≥ 0.95</text><text x="800" y="558" text-anchor="end" fill="#9ce3ce">0.99</text>
+    <text x="96" y="604">Contradicted statements</text><text x="640" y="604" text-anchor="end" fill="#74958e">0</text><text x="800" y="604" text-anchor="end" fill="#9ce3ce">0</text>
+    <text x="96" y="650">Failed calls / scorer errors</text><text x="640" y="650" text-anchor="end" fill="#74958e">0</text><text x="800" y="650" text-anchor="end" fill="#9ce3ce">0 / 0</text>
+  </g>
+  <path d="M96 676H804" stroke="#709a91" stroke-width="2"/>
+  <text class="mono" x="96" y="722" font-size="19" fill="#9ce3ce" style="letter-spacing:2px">16 OF 16 CHECKS PASSED  ✓</text>
+
+  <!-- on the way -->
+  <text class="mono" x="870" y="222" font-size="18" fill="#ff9d79" style="letter-spacing:3px">ON THE WAY THERE</text>
+
+  <rect x="870" y="244" width="660" height="114" rx="12" fill="#152728" stroke="#ff9d79" stroke-width="2"/>
+  <text class="display" x="896" y="318" font-size="52" fill="#ff9d79">12/12</text>
+  <text class="sans" x="1060" y="290" font-size="20" fill="#faf2dc">Microsoft's built-in evaluation: Error.</text>
+  <text class="sans" x="1060" y="320" font-size="18" fill="#add2c6">34 seconds, 0 credits. The evaluator never</text>
+  <text class="sans" x="1060" y="344" font-size="18" fill="#add2c6">reached the agent. Bring your own judge.</text>
+
+  <rect x="870" y="374" width="660" height="114" rx="12" fill="#152728" stroke="#ff9d79" stroke-width="2"/>
+  <text class="display" x="896" y="446" font-size="38" fill="#ff9d79">1000/1000</text>
+  <text class="sans" x="1130" y="420" font-size="20" fill="#faf2dc">Credit cap reached. Agent: off.</text>
+  <text class="sans" x="1130" y="450" font-size="18" fill="#add2c6">About 4 credits a question. The only gate</text>
+  <text class="sans" x="1130" y="474" font-size="18" fill="#add2c6">that fails everyone, instantly.</text>
+
+  <rect x="870" y="504" width="660" height="114" rx="12" fill="#152728" stroke="#ff9d79" stroke-width="2"/>
+  <text class="mono" x="896" y="546" font-size="17" fill="#ff9d79" style="letter-spacing:2px">LIVE RUN 1: FAILED BY THE JUDGE</text>
+  <text class="sans" x="896" y="578" font-size="18" fill="#add2c6">Every agent metric passed. The judge left one label</text>
+  <text class="sans" x="896" y="602" font-size="18" fill="#add2c6">blank on its own homework. It now gets one retry.</text>
+
+  <rect x="870" y="634" width="660" height="126" rx="12" fill="#152728" stroke="#ff9d79" stroke-width="2"/>
+  <text class="mono" x="896" y="676" font-size="17" fill="#ff9d79" style="letter-spacing:2px">AND THE AGENT LEAKED. A LITTLE.</text>
+  <text class="sans" x="896" y="708" font-size="18" fill="#add2c6">Asked about a line clearance error, it added “for Line 2</text>
+  <text class="sans" x="896" y="732" font-size="18" fill="#add2c6">(second shift)”: the test user's memory, not the standard.</text>
+
+  <text class="sans" x="70" y="820" font-size="18" fill="#74958e">Copilot Studio harness agent (Claude Sonnet 4.6), sample corpus in SharePoint, judge GPT-4.1, test tenant, Nov 2026.</text>
+  <text class="mono" x="70" y="862" font-size="19" fill="#9ce3ce" style="letter-spacing:2px">PASSED  ✓   CAP RAISED  ✓   JUDGE JUDGED  ✓</text>
+</svg>

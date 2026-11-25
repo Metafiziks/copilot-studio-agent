@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+  <title id="title">I swore I'd never build a fourth agent. So I built it where it doesn't count.</title>
+  <desc id="desc">An editorial cover: a chat bubble from the agent saying "I couldn't find that" next to a document that is plainly there, and a report card where an AI judge has given every answer 5/5/5, stamped EVERYONE GETS AN A.</desc>
+  <defs>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#abd3ce" stroke-opacity=".13" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="wash" cx="75%" cy="37%" r="74%">
+      <stop stop-color="#234747"/><stop offset="1" stop-color="#101c1f"/>
+    </radialGradient>
+    <style>
+      .mono{font-family:Menlo,'Courier New',monospace;font-weight:700;letter-spacing:3px}
+      .display{font-family:Baskerville,Georgia,serif;font-weight:700}
+      .sans{font-family:'Avenir Next','Helvetica Neue',sans-serif;font-weight:500}
+    </style>
+  </defs>
+  <path fill="url(#wash)" d="M0 0h1920v1080H0z"/>
+  <path fill="url(#grid)" d="M1000 0h920v1080h-920z"/>
+  <path d="M112 110h1696M112 946h1696" stroke="#74958e" stroke-width="2"/>
+  <path d="M112 110h116" stroke="#e8c86f" stroke-width="6"/>
+  <g class="mono" font-size="24" fill="#add2c6">
+    <text x="112" y="169">THREE CLOUDS (+1) / FIELD NOTES</text>
+    <text x="1808" y="169" text-anchor="end">COPILOT STUDIO / PART III</text>
+    <text x="112" y="1006">JEREMIAH WILLIAMS</text>
+    <text x="1808" y="1006" text-anchor="end">NOV 2026</text>
+  </g>
+
+  <text class="display" x="102" y="318" font-size="104" fill="#faf2dc" letter-spacing="-4">I swore I'd never</text>
+  <text class="display" x="102" y="422" font-size="104" fill="#faf2dc" letter-spacing="-4">build a fourth</text>
+  <text class="display" x="102" y="526" font-size="104" fill="#e8c86f" letter-spacing="-4">agent.</text>
+  <text class="display" x="102" y="676" font-size="80" fill="#ff9d79" letter-spacing="-2" font-style="italic">So I built it where</text>
+  <text class="display" x="102" y="764" font-size="80" fill="#ff9d79" letter-spacing="-2" font-style="italic">it doesn't count.</text>
+  <path d="M113 816h72" stroke="#e8c86f" stroke-width="4"/>
+  <text class="sans" x="112" y="878" font-size="31" fill="#e1ebe0">Copilot Studio, a license I didn't have, and a judge who gives everyone an A.</text>
+
+  <!-- the document that is definitely there -->
+  <g transform="translate(1090 214) rotate(-3 140 170)">
+    <path d="M14 14h270v330H14z" fill="#0c1517" opacity=".8"/>
+    <rect width="270" height="330" rx="6" fill="#f1e9d2"/>
+    <path d="M0 0h270v50H0z" fill="#d9d0b6"/>
+    <text class="mono" x="135" y="33" font-size="15" fill="#3a3a33" text-anchor="middle" style="letter-spacing:2px">LOCKOUT_TAGOUT.DOCX</text>
+    <g fill="#bdb497"><rect x="26" y="80" width="218" height="10"/><rect x="26" y="106" width="180" height="10"/><rect x="26" y="132" width="204" height="10"/><rect x="26" y="158" width="140" height="10"/><rect x="26" y="184" width="210" height="10"/><rect x="26" y="210" width="170" height="10"/></g>
+    <text class="mono" x="135" y="280" font-size="15" fill="#5b7a72" text-anchor="middle" style="letter-spacing:2px">SHAREPOINT · INDEXED</text>
+    <text class="mono" x="135" y="304" font-size="15" fill="#5b7a72" text-anchor="middle" style="letter-spacing:2px">RIGHT HERE</text>
+  </g>
+
+  <!-- the agent's opinion -->
+  <g transform="translate(1400 250) rotate(3 150 70)">
+    <path d="M10 10h330v120H10z" fill="#0c1517" opacity=".8"/>
+    <rect width="330" height="120" rx="18" fill="#152728" stroke="#ff9d79" stroke-width="3"/>
+    <path d="M40 120l-10 44 50-44z" fill="#152728" stroke="#ff9d79" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M42 117h40" stroke="#152728" stroke-width="6"/>
+    <text class="mono" x="26" y="42" font-size="15" fill="#ff9d79" style="letter-spacing:2px">AGENT</text>
+    <text class="sans" x="26" y="88" font-size="31" fill="#faf2dc">“I couldn't find that.”</text>
+  </g>
+  <path d="M1372 360c40 20 30 60 64 70" fill="none" stroke="#ff9d79" stroke-width="3" stroke-dasharray="8 7"/>
+
+  <!-- the report card -->
+  <g transform="translate(1250 560) rotate(2 230 170)">
+    <path d="M12 12h470v330H12z" fill="#0c1517" opacity=".8"/>
+    <rect width="470" height="330" rx="10" fill="#152728" stroke="#9ce3ce" stroke-width="2"/>
+    <text class="mono" x="26" y="44" font-size="16" fill="#e8c86f" style="letter-spacing:2px">AI JUDGE · REPORT CARD</text>
+    <path d="M24 60h422" stroke="#709a91" stroke-width="2"/>
+    <g class="mono" font-size="19" fill="#e1ebe0" style="letter-spacing:1px">
+      <text x="26" y="100">Faithfulness</text><text x="444" y="100" text-anchor="end" fill="#9ce3ce">5/5</text>
+      <text x="26" y="140">Relevance</text><text x="444" y="140" text-anchor="end" fill="#9ce3ce">5/5</text>
+      <text x="26" y="180">Completeness</text><text x="444" y="180" text-anchor="end" fill="#9ce3ce">5/5</text>
+      <text x="26" y="222" fill="#add2c6" font-size="16">Answers graded: 54 of 54</text>
+    </g>
+    <g transform="rotate(-7 320 280)">
+      <rect x="190" y="246" width="260" height="66" rx="6" fill="#152728" stroke="#ff7a52" stroke-width="6"/>
+      <text class="mono" x="320" y="275" font-size="21" fill="#ff7a52" text-anchor="middle" style="letter-spacing:3px">EVERYONE</text>
+      <text class="mono" x="320" y="301" font-size="21" fill="#ff7a52" text-anchor="middle" style="letter-spacing:3px">GETS AN A</text>
+    </g>
+  </g>
+</svg>

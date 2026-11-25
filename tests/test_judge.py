@@ -281,3 +281,51 @@ def test_rescore_counts_judge_errors_and_exits_non_zero(tmp_path):
     code = judge.rescore(str(_answers_file(tmp_path)), CFG, docs_dir=tmp_path,
                          transport=scripted((401, {}, "bad key")), sleep=lambda s: None, out=lines.append)
     assert code == 2 and "0 judged, 4 errors" in "\n".join(lines)
+
+
+# --- claim mode -----------------------------------------------------------------------------------------
+
+def claims_json(*labels):
+    return json.dumps({"claims": [{"claim": f"c{i}", "label": l} for i, l in enumerate(labels)]})
+
+
+def test_claim_mode_scores_the_share_of_stated_statements():
+    v = judge.parse_claims(claims_json("stated", "stated", "added", "contradicted"))
+    assert v["stated_share"] == 0.5 and v["counts"] == {"stated": 2, "added": 1, "contradicted": 1}
+
+
+@pytest.mark.parametrize("raw", ['{"claims": []}', '{"claims": [{"claim": "x", "label": "maybe"}]}', "OK", '{"x": 1}'])
+def test_claim_mode_rejects_malformed_replies(raw):
+    with pytest.raises(judge.JudgeError):
+        judge.parse_claims(raw)
+
+
+def test_claim_mode_asks_for_room_to_list_every_claim():
+    transport = scripted(OK(claims_json("stated")))
+    judge.judge_claims("q?", "a", DOCS, CFG, transport)
+    body = transport.calls[0]["body"]
+    assert body["max_tokens"] == 2500 and "stated" in body["messages"][0]["content"]
+
+
+def _claims_by_answer(mapping):
+    """A transport whose reply depends on which self-test answer is in the request."""
+    def transport(url, headers, body):
+        text = json.loads(body)["messages"][1]["content"]
+        for marker, labels in mapping.items():
+            if marker in text:
+                return OK(claims_json(*labels))
+        raise AssertionError("unexpected answer")
+    return transport
+
+
+def test_claim_selftest_passes_when_added_detail_is_caught():
+    t = _claims_by_answer({"ventilation": ("stated", "added", "stated", "added", "added"),
+                           "Friday": ("contradicted", "contradicted", "added"),
+                           "Monday": ("stated", "stated")})
+    assert judge.claims_selftest(CFG, t)["passed"]
+
+
+def test_claim_selftest_fails_for_a_judge_that_calls_everything_stated():
+    t = _claims_by_answer({"ventilation": ("stated",) * 5, "Friday": ("stated",) * 3, "Monday": ("stated", "stated")})
+    result = judge.claims_selftest(CFG, t)
+    assert not result["passed"] and not result["checks"]["added_detail_is_caught"]

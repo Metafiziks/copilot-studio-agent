@@ -51,3 +51,7 @@ jobs:
       - name: LLM judge on the saved agent answers (only when a judge key is configured)
         if: env.JUDGE_API_KEY != ''
         run: python scripts/judge.py rescore tests/fixtures/agent_answers.json
+
+      - name: LLM judge, claim by claim, on the saved agent answers (only when a judge key is configured)
+        if: env.JUDGE_API_KEY != ''
+        run: python scripts/judge.py rescore --claims tests/fixtures/agent_answers.json

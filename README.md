@@ -148,7 +148,12 @@ The live CI eval (Actions run 45707615037, `eval.yml`) scored every gate above b
 scorer error: on one answer the judge's claim-mode reply left a label blank. The judge now gets one correction
 round for a malformed reply; re-scored with that fix, the same 12 answers judge with no errors (stated share
 0.976). Its one flagged answer is a real find: asked about a line clearance error, the agent added "for Line 2
-(second shift)", which is the eval user's stored preference, not something the standard says.
+(second shift)", which is the eval user's stored preference, not something the standard says. A second live run
+(Actions run 45710449948) passed every check: keyword recall 0.928, citation recall 1.00, p95 21.2 s, memory
+1.00, HHEM 0.811, judge stated share 0.99 with no contradicted claims and no judge errors, faithfulness,
+relevance and completeness 1.00. Its only added statement was "Only after these four steps have been completed
+may the line be restarted", an inference from the standard's "before restarting", and the Line 2 aside did not
+recur.
 
 **How it got here (so you do not repeat it).** The first run, against the e2e site, scored 0.06 and 0.0.
 The cause was not the agent being wrong. Two checks had been misleading:
@@ -211,7 +216,7 @@ the 54 saved answers:
 |---|---|---|---|
 | Before tightening (run 1, 2, 3) | 0.918, 0.958, 0.955 | 0.58, 0.42, 0.33 | 0 |
 | After ("name once", final "cite") | 0.986, 0.988 | 0.08, 0.08 | 0 |
-| Live CI eval on dev, final wording | 0.974 (0.976 re-scored) | 0.17 | 0 |
+| Live CI eval on dev, final wording | 0.974 (0.976 re-scored); 0.990 on the second run | 0.17; 0.08 | 0 |
 
 It agrees with HHEM on direction and finds what a reader would: the old conveyor answer adds "tears, fraying" and
 "on or around the conveyor" to a manual that lists only "unusual noise, belt damage, loose fasteners, foreign

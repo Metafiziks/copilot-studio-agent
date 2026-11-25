@@ -371,3 +371,17 @@ def test_claim_selftest_fails_for_a_judge_that_calls_everything_stated():
     t = _claims_by_answer({"ventilation": ("stated",) * 5, "Friday": ("stated",) * 3, "Monday": ("stated", "stated")})
     result = judge.claims_selftest(CFG, t)
     assert not result["passed"] and not result["checks"]["added_detail_is_caught"]
+
+
+def test_a_blank_claim_label_gets_one_correction_round():
+    bad = json.dumps({"claims": [{"claim": "x", "label": ""}]})
+    transport = scripted(OK(bad), OK(claims_json("stated", "added")))
+    v = judge.judge_claims("q?", "a", DOCS, CFG, transport)
+    assert v["stated_share"] == 0.5 and v["retried"]
+    assert transport.calls[1]["body"]["messages"][-2] == {"role": "assistant", "content": bad}
+
+
+def test_a_second_malformed_claim_reply_is_an_error():
+    bad = json.dumps({"claims": [{"claim": "x", "label": ""}]})
+    with pytest.raises(judge.JudgeError):
+        judge.judge_claims("q?", "a", DOCS, CFG, scripted(OK(bad), OK(bad)))

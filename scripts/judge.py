@@ -198,9 +198,17 @@ def parse_claims(raw: str) -> dict:
 def judge_claims(question: str, answer: str, documents: list[tuple[str, str]], cfg: dict,
                  transport=None, sleep=time.sleep) -> dict:
     """Label each statement in one answer as stated / added / contradicted. Raises JudgeError if unusable."""
-    raw = call_judge(cfg, build_claim_messages(question, answer, documents), transport or http_transport,
-                     sleep=sleep, max_tokens=2500)
-    verdict = parse_claims(raw)
+    messages = build_claim_messages(question, answer, documents)
+    raw = call_judge(cfg, messages, transport or http_transport, sleep=sleep, max_tokens=2500)
+    try:
+        verdict = parse_claims(raw)
+    except JudgeError as exc:
+        # One correction round: the model occasionally leaves a label blank. A second malformed reply is an error.
+        retry = messages + [{"role": "assistant", "content": raw},
+                            {"role": "user", "content": f"That reply was not usable ({exc}). Reply again with the "
+                             "complete JSON object, every claim labelled stated, added or contradicted."}]
+        verdict = parse_claims(call_judge(cfg, retry, transport or http_transport, sleep=sleep, max_tokens=2500))
+        verdict["retried"] = True
     verdict["model"] = cfg["model"]
     return verdict
 
